@@ -7,10 +7,10 @@ find_package(Qt6 REQUIRED COMPONENTS Test)
 
 # Shared test isolation: a private D-Bus session plus a per-target XDG sandbox,
 # so a test that writes into its user data dir writes into the sandbox. See
-# phosphor-geometry/tests/CMakeLists.txt for why the include walks up from
-# CMAKE_CURRENT_LIST_DIR and why the stand-ins exist.
-if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../../../cmake/PhosphorTestIsolation.cmake")
-    include(${CMAKE_CURRENT_LIST_DIR}/../../../cmake/PhosphorTestIsolation.cmake)
+# phosphor-engine/tests/CMakeLists.txt for where the module comes from and why
+# the stand-ins exist.
+if(PHOSPHOR_LIBS_CMAKE_DIR AND EXISTS "${PHOSPHOR_LIBS_CMAKE_DIR}/PhosphorTestIsolation.cmake")
+    include(${PHOSPHOR_LIBS_CMAKE_DIR}/PhosphorTestIsolation.cmake)
 else()
     function(phosphor_apply_test_isolation _target)
     endfunction()

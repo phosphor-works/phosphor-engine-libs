@@ -35,14 +35,11 @@ find_package(Qt6 REQUIRED COMPONENTS Test)
 # Every sibling tests tree includes this explicitly. Relying on an earlier
 # add_subdirectory having already defined the function would make this tree's
 # configure depend on the order of the libs block.
-# CMAKE_CURRENT_LIST_DIR, not CMAKE_SOURCE_DIR: the latter is the repo root
-# in-tree but this LIBRARY's directory in a standalone configure, so the include
-# looked for libs/<lib>/cmake/PhosphorTestIsolation.cmake and hard-failed at
-# generate time. The relative walk reaches the repo root from either. The EXISTS
-# guard covers the remaining case, a genuine extracted `git subtree split` where
-# the repo-root module is not in the subtree at all.
-if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../../../cmake/PhosphorTestIsolation.cmake")
-    include(${CMAKE_CURRENT_LIST_DIR}/../../../cmake/PhosphorTestIsolation.cmake)
+# The module lives in phosphor-libs, which this tree adds first and which
+# names its cmake/ directory in PHOSPHOR_LIBS_CMAKE_DIR. The guard covers a
+# standalone configure of this library directory, where nothing has set it.
+if(PHOSPHOR_LIBS_CMAKE_DIR AND EXISTS "${PHOSPHOR_LIBS_CMAKE_DIR}/PhosphorTestIsolation.cmake")
+    include(${PHOSPHOR_LIBS_CMAKE_DIR}/PhosphorTestIsolation.cmake)
 else()
     # Stand-ins so the call sites below need no guard of their own.
     # phosphor_append_test_environment is reproduced EXACTLY, because it is

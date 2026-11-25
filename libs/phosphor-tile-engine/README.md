@@ -1,48 +1,29 @@
-<!-- SPDX-FileCopyrightText: 2026 Phosphor Works Team
-     SPDX-License-Identifier: LGPL-2.1-or-later -->
+<!-- SPDX-FileCopyrightText: 2026 Phosphor Works Team -->
+<!-- SPDX-License-Identifier: LGPL-2.1-or-later -->
 
 # phosphor-tile-engine
 
-> Automatic-tiling placement engine. Implements `IPlacementEngine` for
-> screens running an autotile algorithm; handles dynamic re-layout on
-> window open / close / focus, navigation, ratio / master-count
-> adjustments, per-screen overrides, and overflow auto-floating.
+The automatic tiling placement engine. It implements `IPlacementEngine` for screens that run an autotile algorithm.
+It does the layout again when a window opens, closes or gets focus. It also handles navigation, ratio and
+master-count changes, per-screen overrides and auto-floating on overflow.
 
 ## Responsibility
 
-[`phosphor-tiles`](../phosphor-tiles/README.md) owns the algorithms
-themselves (`TilingAlgorithm`, `TilingState`, the Luau algorithm binding).
-`phosphor-tile-engine` is the **runtime engine** that drives those
-algorithms in response to compositor events. Splitting them lets
-settings UI render an algorithm preview without linking the engine,
-and lets engine work iterate without touching the algorithm
-vocabulary.
+[`phosphor-tiles`](../phosphor-tiles/README.md) owns the algorithms (`TilingAlgorithm`, `TilingState`, the Luau
+algorithm binding). `phosphor-tile-engine` is the **runtime engine** that drives those algorithms when compositor
+events occur. Because the two are separate, a settings UI can show an algorithm preview without a link to the
+engine. Also, the engine can change and the algorithm vocabulary stays the same.
 
-The engine manages:
+The engine manages these areas:
 
-- **Lifecycle.** Window-open kicks the active algorithm. Window-close
-  removes the entry from `TilingState` and re-runs layout. Focus
-  events drive the cursor / focus model the consumer cares about.
-- **Navigation.** `NavigationController` (a stateless helper holding
-  a back-pointer to the engine) handles focus next / previous /
-  master, swap, rotation, directional focus / swap, position moves,
-  and master ratio / count adjustments. Stateless means no member
-  data forks from the engine.
-- **Per-screen overrides.** `PerScreenConfigResolver` resolves
-  effective gap / algorithm / split-ratio / master-count by falling
-  back through per-screen overrides → global `AutotileConfig`.
-- **Overflow.** `OverflowManager` tracks windows auto-floated when
-  the tiled count exceeds `maxWindows`. Returns lists of windows to
-  float / unfloat, and the engine performs the mutations and emits the
-  signals so `TilingState` stays the single mutation point.
-- **Restore.** Autotile keeps no restore queue of its own: a
-  closed-while-autotiled window's slot is captured into the shared
-  `WindowPlacementStore` (via `capturePlacement`), so reopening the
-  same `appId` restores it to the same tiling slot. The store's
-  per-`appId` cap of 16 entries prevents unbounded growth.
-- **Per-algorithm settings.** `AlgorithmSettings` (split ratio,
-  master count, custom params) saves on switch-away and restores on
-  switch-back, so each algorithm remembers its tuning.
+| Area | What the engine does |
+| --- | --- |
+| Lifecycle | When a window opens, the engine runs the active algorithm. When a window closes, it removes the entry from `TilingState` and runs the layout again. Focus events drive the cursor and focus model of the consumer. |
+| Navigation | `NavigationController` is a stateless helper that holds a back-pointer to the engine. It handles focus next, previous and master, swap, rotation, directional focus and swap, position moves, and master ratio and count changes. Stateless means that no member data separates from the engine. |
+| Per-screen overrides | `PerScreenConfigResolver` resolves the effective gap, algorithm, split ratio and master count. It falls back from the per-screen overrides to the global `AutotileConfig`. |
+| Overflow | `OverflowManager` records the windows that were auto-floated when the tiled count is more than `maxWindows`. It returns lists of windows to float and unfloat. The engine does the mutations and emits the signals, so `TilingState` stays the single mutation point. |
+| Restore | Autotile keeps no restore queue of its own. When a window closes while autotiled, its slot goes into the shared `WindowPlacementStore` (through `capturePlacement`). When a window with the same `appId` opens again, it goes back to the same tiling slot. The store keeps 16 entries at most for each `appId`, so it cannot grow without limit. |
+| Per-algorithm settings | `AlgorithmSettings` (split ratio, master count, custom params) is saved when the user switches away from an algorithm and restored on the switch back. Thus each algorithm keeps its tuning. |
 
 ## Key types
 
@@ -50,15 +31,15 @@ The engine manages:
 |------|---------|
 | `PhosphorTileEngine::AutotileEngine`          | Concrete `IPlacementEngine` for autotile screens |
 | `PhosphorTileEngine::AutotileConfig`          | Global config: default algorithm, gaps, master count, per-algorithm `AlgorithmSettings` map |
-| `PhosphorEngine::IAutotileSettings`           | Settings contract the engine reads (declared in `PhosphorEngine`, implementation ships from here) |
-| `PhosphorTileEngine::NavigationController`    | Stateless helper for focus / swap / rotate / split-ratio / master-count |
-| `PhosphorTileEngine::OverflowManager`         | Per-screen tracking of auto-floated windows when `maxWindows` is exceeded |
-| `PhosphorTileEngine::PerScreenConfigResolver` | Resolves per-screen overrides → global config |
-| `PhosphorTileEngine::AlgorithmSettings`       | Per-algorithm split ratio + master count + custom params (saved on switch-away) |
+| `PhosphorEngine::IAutotileSettings`           | Settings contract the engine reads (declared in `PhosphorEngine`, this library ships the implementation) |
+| `PhosphorTileEngine::NavigationController`    | Stateless helper for focus, swap, rotate, split ratio and master count |
+| `PhosphorTileEngine::OverflowManager`         | Per-screen record of the windows auto-floated when `maxWindows` is exceeded |
+| `PhosphorTileEngine::PerScreenConfigResolver` | Resolves per-screen overrides over the global config |
+| `PhosphorTileEngine::AlgorithmSettings`       | Per-algorithm split ratio, master count and custom params (saved on switch-away) |
 
-## Typical use
+## Use
 
-Wire up the engine inside the daemon's composition root:
+Connect the engine in the composition root of the daemon:
 
 ```cpp
 #include <PhosphorTileEngine/AutotileEngine.h>
@@ -73,42 +54,42 @@ auto* autotile = new AutotileEngine(layoutRegistry,           // from phosphor-z
 autotile->setWindowRegistry(windowRegistry);          // late-bound app-id resolver
 autotile->setEngineSettings(autotileSettingsAdaptor); // base-class settings wiring
 autotile->refreshConfigFromSettings();                // pull initial config from settings
-
-placementEngineRouter.bind("autotile", autotile);
 ```
+
+The daemon then sends each screen's events to the engine of that screen. In phosphor-engine-runtime,
+`ScreenModeRouter` takes the snap, autotile and scroll engines, and `engineFor(screenId)` returns the one to call.
 
 ## Design notes
 
-- **Inherits `PlacementEngineBase`.** Like the snap engine, it reuses the
-  base's shared plumbing (settings injection, pruning, common signals) and
-  adds the autotile-specific intent dispatch.
-- **`NavigationController` is stateless.** Every method dispatches back
-  to the engine for reads / writes. The controller carries only a
-  back-pointer, so it isolates navigation logic without forking any
-  member state.
-- **`OverflowManager` doesn't mutate `TilingState`.** It returns the
-  lists of windows to float / unfloat, and the engine performs the
-  mutations and emits signals. This keeps `TilingState` the sole
-  mutation point and overflow accounting trivially testable.
-- **Per-app restore is bounded.** `WindowPlacementStore::MaxPerApp = 16`
-  caps the per-`appId` queue so a misbehaving app can't grow
-  restore state without limit.
-- **Algorithm settings are saved per-algorithm, not globally.**
-  Switching from `master-stack` to `spiral` and back restores the
-  prior split ratio and master count for `master-stack`, so users keep
-  their tuning per algorithm.
+- **Inherits `PlacementEngineBase`.** As the snap engine does, it uses the shared plumbing of the base (settings
+  injection, pruning, common signals). It adds the intent dispatch for autotile.
+- **`NavigationController` is stateless.** Each method sends reads and writes back to the engine. The controller
+  holds only a back-pointer. Thus it isolates the navigation logic and copies no member state.
+- **`OverflowManager` does not change `TilingState`.** It returns the lists of windows to float and unfloat. The
+  engine does the mutations and emits the signals. Thus `TilingState` stays the only mutation point, and the
+  overflow accounting is easy to test.
+- **Per-app restore has a limit.** `WindowPlacementStore::MaxPerApp = 16` is the limit of the queue for each
+  `appId`. Thus an app that behaves badly cannot grow the restore state without limit.
+- **Algorithm settings are saved for each algorithm, not globally.** If the user switches from `master-stack` to
+  `spiral` and back, the earlier split ratio and master count of `master-stack` come back. Users keep their tuning
+  for each algorithm.
 
 ## Dependencies
 
 - `QtCore`
-- [`phosphor-engine`](../phosphor-engine/README.md) — `IPlacementEngine`, `PlacementEngineBase`, `IWindowRegistry`, `IWindowTrackingService`, `PerScreenKeys`
-- [`phosphor-tiles`](../phosphor-tiles/README.md) — `TilingAlgorithm`, `TilingState`, `ITileAlgorithmRegistry`, `AutotileConstants`
-- [`phosphor-zones`](../phosphor-zones/README.md) — `Layout`, `LayoutRegistry`
-- [`phosphor-layout-api`](../phosphor-layout-api/README.md) — `EdgeGaps`
-- [`phosphor-screens`](../phosphor-screens/README.md) — `PhosphorScreens::ScreenManager`
-- [`phosphor-identity`](../phosphor-identity/README.md) — window IDs (private link)
+- [`phosphor-engine`](../phosphor-engine/README.md): `IPlacementEngine`, `PlacementEngineBase`, `IWindowRegistry`,
+  `IWindowTrackingService`, `PerScreenKeys`
+- [`phosphor-tiles`](../phosphor-tiles/README.md): `TilingAlgorithm`, `TilingState`, `ITileAlgorithmRegistry`,
+  `AutotileConstants`
+- [`phosphor-zones`](../phosphor-zones/README.md): `Layout`, `LayoutRegistry`
+- [`phosphor-layout-api`](https://github.com/phosphor-works/phosphor-libs/blob/main/libs/phosphor-layout-api/README.md):
+  `EdgeGaps`
+- [`phosphor-screens`](https://github.com/phosphor-works/phosphor-libs/blob/main/libs/phosphor-screens/README.md):
+  `PhosphorScreens::ScreenManager`
+- [`phosphor-identity`](https://github.com/phosphor-works/phosphor-libs/blob/main/libs/phosphor-identity/README.md):
+  window IDs (private link)
 
 ## See also
 
-- [`phosphor-tiles`](../phosphor-tiles/README.md) — algorithm vocabulary, the Luau binding, and `TilingState`.
-- [`phosphor-snap-engine`](../phosphor-snap-engine/README.md) — sibling manual-zone engine.
+- [`phosphor-tiles`](../phosphor-tiles/README.md): the algorithm vocabulary, the Luau binding and `TilingState`.
+- [`phosphor-snap-engine`](../phosphor-snap-engine/README.md): the sibling engine for manual zones.

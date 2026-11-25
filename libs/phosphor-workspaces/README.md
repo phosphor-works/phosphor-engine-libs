@@ -1,29 +1,23 @@
-<!-- SPDX-FileCopyrightText: 2026 Phosphor Works Team
-     SPDX-License-Identifier: LGPL-2.1-or-later -->
+<!-- SPDX-FileCopyrightText: 2026 Phosphor Works Team -->
+<!-- SPDX-License-Identifier: LGPL-2.1-or-later -->
 
 # phosphor-workspaces
 
-> Virtual desktop and activity tracking, plus the per-monitor
-> dynamic-workspace model. The managers take their desktops and activities
-> from backends; the KDE Plasma session's (KWin's virtual desktops over
-> D-Bus, Plasma's activities over PlasmaActivities) are a separate library,
-> `PhosphorWorkspaces::Plasma`.
+Virtual desktop and activity tracking, and the per-monitor dynamic-workspace model. The managers get their desktops
+and activities from backends. The backends of the KDE Plasma session (KWin's virtual desktops over D-Bus, Plasma's
+activities over PlasmaActivities) are a separate library, `PhosphorWorkspaces::Plasma`.
 
 ## Responsibility
 
-Tracks the active virtual desktop and current Activity, with change
-signals on switch. It also owns the per-monitor dynamic-workspace model:
-which desktops each monitor owns, in what order, and the state machine that
-creates, destroys and moves desktops to keep that model true. It is
-independent of the Phosphor daemon, so consumers that need workspace
-awareness link this library directly.
+The library records the active virtual desktop and the current Activity, and emits change signals on a switch. It
+also owns the per-monitor dynamic-workspace model. The model tells which desktops each monitor owns, and in which
+order. A state machine creates, destroys and moves desktops to keep that model true. The library does not depend on
+the Phosphor daemon, so a consumer that needs workspace awareness links it directly.
 
-The core library reaches no compositor. `VirtualDesktopManager` keeps every
-rule about the desktops (validating a list, renumbering, the per-screen
-desktops, one read in flight, retries) and asks an `IVirtualDesktopBackend`
-only to read, write and report. `ActivityManager` does the same over an
-`IActivityBackend`. A compositor that owns its desktops implements the two
-interfaces itself.
+The core library reaches no compositor. `VirtualDesktopManager` keeps every rule about the desktops: list
+validation, renumbering, the per-screen desktops, one read in flight, and retries. It asks an
+`IVirtualDesktopBackend` only to read, write and report. `ActivityManager` does the same over an
+`IActivityBackend`. A compositor that owns its desktops implements the two interfaces itself.
 
 ## Key types
 
@@ -40,11 +34,11 @@ interfaces itself.
 
 | Type | Purpose |
 |------|---------|
-| `KWinVirtualDesktopBackend` | KWin's org.kde.KWin.VirtualDesktopManager on the session bus, every call bounded at a second |
+| `KWinVirtualDesktopBackend` | KWin's org.kde.KWin.VirtualDesktopManager on the session bus. Each call has a limit of one second |
 | `Plasma::createVirtualDesktopBackend()` | KWin's backend |
 | `Plasma::createActivityBackend()` | Plasma's activities over PlasmaActivities, null when built without it |
 
-## Typical use
+## Use
 
 ```cpp
 #include <PhosphorWorkspaces/ActivityManager.h>
@@ -70,12 +64,10 @@ activities.start();
 ## Dependencies
 
 - `QtCore`
-- PhosphorEngine (`DesktopRemap`, which the reconciler uses to follow the
-  renumbering a desktop removal causes)
+- PhosphorEngine (`DesktopRemap`, which the reconciler uses to follow the renumbering that a desktop removal causes)
 - PhosphorIdentity (private, virtual-screen id parsing)
 
-`PhosphorWorkspaces::Plasma` adds `QtDBus` and, optionally, PlasmaActivities
-(KF6Activities on older distributions), detected at CMake time. Without it
-`Plasma::createActivityBackend()` answers null, so `ActivityManager` is
-unavailable and activity queries return empty results, while virtual desktop
-tracking works regardless.
+`PhosphorWorkspaces::Plasma` adds `QtDBus` and, if available, PlasmaActivities (KF6Activities on older
+distributions). CMake detects it at configure time. Without it, `Plasma::createActivityBackend()` returns null. Then
+`ActivityManager` is unavailable and activity queries return empty results. Virtual desktop tracking works in both
+cases.

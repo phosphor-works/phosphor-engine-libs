@@ -1,77 +1,51 @@
-<!-- SPDX-FileCopyrightText: 2026 Phosphor Works Team
-     SPDX-License-Identifier: LGPL-2.1-or-later -->
+<!-- SPDX-FileCopyrightText: 2026 Phosphor Works Team -->
+<!-- SPDX-License-Identifier: LGPL-2.1-or-later -->
 
 # phosphor-tiles
 
-> Tiling algorithms (Luau scripts via the `pluau` standard library), `TilingState`,
-> the algorithm registry, and the `ILayoutSource` adapter that publishes
-> autotile output to the daemon.
+Tiling algorithms (Luau scripts through the `pluau` standard library), `TilingState`, the algorithm registry, and
+the `ILayoutSource` adapter that publishes autotile output to the daemon.
 
 ## Responsibility
 
-Zones are static layouts the user draws in an editor. Autotiling is the
-*dynamic* counterpart: as windows open and close, a tiling algorithm
-recomputes the zone boundaries automatically. This library owns the
-**algorithm vocabulary** and the **per-screen tiling state**. The
-runtime engine that drives them lives in
-[`phosphor-tile-engine`](../phosphor-tile-engine/README.md), and the generic
-Luau host (sandbox, watchdog, marshalling) lives in
-[`phosphor-scripting`](../phosphor-scripting/README.md).
+Zones are static layouts that the user draws in an editor. Autotiling is the *dynamic* counterpart. As windows open
+and close, a tiling algorithm calculates the zone boundaries again. This library owns the **algorithm vocabulary**
+and the **per-screen tiling state**. The runtime engine that drives them is in
+[`phosphor-tile-engine`](../phosphor-tile-engine/README.md). The generic Luau host (sandbox, watchdog, marshalling)
+is in [`phosphor-scripting`](https://github.com/phosphor-works/phosphor-libs/blob/main/libs/phosphor-scripting/README.md).
 
-- **Algorithms.** `TilingAlgorithm` is the base. `LuauTileAlgorithm` is the
-  single concrete implementation, a `TilingAlgorithm` that delegates to a
-  Luau script. Every layout (binary-split, master-stack, columns, spiral, …)
-  ships as a `.luau` script in `data/algorithms/`, and there are no hard-coded
-  C++ geometry algorithms.
-- **`pluau` standard library.** Scripts are written against `pluau`, a Luau table of
-  geometry primitives (a `Rect` with gap-aware splits, plus ~25 layout/helper
-  functions). It is compiled into the library as a Qt resource (`pluau.luau`),
-  injected as a **frozen** global before each untrusted script runs, and typed
-  for editors by `pluau.d.luau`.
-- **Sandbox & limits.** These are provided by `phosphor-scripting`'s
-  `LuauEngine` (`luaL_sandbox` read-only globals, a per-engine heap cap, and a
-  shared `LuauWatchdog` that aborts runaway scripts at a CPU deadline). They are
-  not provided by this library.
-- **Loader.** `ScriptedAlgorithmLoader` discovers `*.luau` files from
-  consumer-chosen system and user data directories, validates each basename,
-  creates a `LuauTileAlgorithm`, and registers it. It hot-reloads via
-  `QFileSystemWatcher` with debounced refresh.
-- **Registry.** `ITileAlgorithmRegistry` is the read-side contract.
-  `AlgorithmRegistry` is the concrete catalogue, mirroring the
-  [`phosphor-zones`](../phosphor-zones/README.md) `LayoutRegistry` shape.
-- **State.** `TilingState` tracks per-screen window order, master count,
-  split-tree, and floating set. Implements
-  `PhosphorEngine::IPlacementState` so the daemon's persistence and
-  D-Bus surface treat it the same as `SnapState`.
-- **Layout source.** `AutotileLayoutSource` wraps a registry as an
-  `ILayoutSource` so the rest of the stack consumes autotile output the
-  same way it consumes manual zones. `AutotileLayoutSourceFactory`
-  registers this source through `LayoutSourceProviderRegistry`.
-- **Preview.** `AutotilePreviewRender` paints a layout thumbnail directly
-  on a `QPainter` for the algorithm-picker UI.
+| Part | What it is |
+| --- | --- |
+| Algorithms | `TilingAlgorithm` is the base. `LuauTileAlgorithm` is the single concrete implementation, a `TilingAlgorithm` that delegates to a Luau script. Every layout (binary-split, master-stack, columns, spiral, …) ships as a `.luau` script in `data/algorithms/`. There are no hard-coded C++ geometry algorithms. |
+| `pluau` standard library | Scripts use `pluau`, a Luau table of geometry primitives: a `Rect` with gap-aware splits, plus about 25 layout and helper functions. It is compiled into the library as a Qt resource (`pluau.luau`). It is injected as a **frozen** global before each untrusted script runs. `pluau.d.luau` gives its types to editors. |
+| Sandbox and limits | `phosphor-scripting`'s `LuauEngine` provides them, not this library: `luaL_sandbox` read-only globals, a heap cap for each engine, and a shared `LuauWatchdog` that stops a runaway script at a CPU deadline. |
+| Loader | `ScriptedAlgorithmLoader` finds `*.luau` files in system and user data directories that the consumer chooses. It validates each basename, creates a `LuauTileAlgorithm` and registers it. It reloads through `QFileSystemWatcher`, with a debounced refresh. |
+| Registry | `ITileAlgorithmRegistry` is the read-side contract. `AlgorithmRegistry` is the concrete catalog, with the same shape as the [`phosphor-zones`](../phosphor-zones/README.md) `LayoutRegistry`. |
+| State | `TilingState` records the per-screen window order, master count, split tree and floating set. It implements `PhosphorEngine::IPlacementState`, so the persistence and D-Bus surface of the daemon treat it the same as `SnapState`. |
+| Layout source | `AutotileLayoutSource` wraps a registry as an `ILayoutSource`. Thus the rest of the stack uses autotile output the same way as manual zones. `AutotileLayoutSourceFactory` registers this source through `LayoutSourceProviderRegistry`. |
+| Preview | `AutotilePreviewRender` paints a layout thumbnail directly on a `QPainter` for the algorithm-picker UI. |
 
 ## Key types
 
 | Type | Purpose |
 |------|---------|
-| `PhosphorTiles::TilingAlgorithm`             | Abstract base; `calculateZones(const TilingParams&) -> QVector<QRect>` |
+| `PhosphorTiles::TilingAlgorithm`             | Abstract base: `calculateZones(const TilingParams&) -> QVector<QRect>` |
 | `PhosphorTiles::LuauTileAlgorithm`           | The concrete `TilingAlgorithm` that delegates to a Luau script |
-| `PhosphorTiles::TilingState`                 | Per-screen window order + master count + split tree; implements `IPlacementState` |
-| `PhosphorTiles::SplitTree`                   | Binary-split tree node + ratio used by tree-style algorithms |
-| `PhosphorTiles::ITileAlgorithmRegistry`      | Read-side contract; subclasses `ILayoutSourceRegistry` |
-| `PhosphorTiles::AlgorithmRegistry`           | Concrete catalogue of registered `LuauTileAlgorithm`s |
-| `PhosphorTiles::ScriptedAlgorithmLoader`     | Discovers `*.luau` files, validates names, creates + registers `LuauTileAlgorithm`s |
-| `PhosphorTiles::AutotileLayoutSource`        | `ILayoutSource` adapter wrapping a registry |
-| `PhosphorTiles::AutotileLayoutSourceFactory` | Provider factory, registers with `LayoutSourceProviderRegistry` |
-| `PhosphorTiles::AutotilePreviewRender`       | Paint-a-thumbnail helper for the algorithm picker |
+| `PhosphorTiles::TilingState`                 | Per-screen window order, master count and split tree. Implements `IPlacementState` |
+| `PhosphorTiles::SplitTree`                   | Binary-split tree node and ratio for tree-style algorithms |
+| `PhosphorTiles::ITileAlgorithmRegistry`      | Read-side contract. Subclasses `ILayoutSourceRegistry` |
+| `PhosphorTiles::AlgorithmRegistry`           | Concrete catalog of the registered `LuauTileAlgorithm`s |
+| `PhosphorTiles::ScriptedAlgorithmLoader`     | Finds `*.luau` files, validates names, creates and registers `LuauTileAlgorithm`s |
+| `PhosphorTiles::AutotileLayoutSource`        | `ILayoutSource` adapter that wraps a registry |
+| `PhosphorTiles::AutotileLayoutSourceFactory` | Provider factory. Registers with `LayoutSourceProviderRegistry` |
+| `PhosphorTiles::AutotilePreviewRender`       | Helper that paints a thumbnail for the algorithm picker |
 
-The `pluau` standard library (`src/pluau/pluau.luau`) and its type stubs (`src/pluau/pluau.d.luau`)
-are the Luau-side API surface. See the
-[tiling algorithm authoring guide](https://phosphor-works.org/guides/tiling/).
+The `pluau` standard library (`src/pluau/pluau.luau`) and its type stubs (`src/pluau/pluau.d.luau`) are the API
+surface on the Luau side. See the [tiling algorithm authoring guide](https://phosphor-works.org/guides/tiling/).
 
-## Typical use
+## Use
 
-Discover and run the bundled + user Luau algorithms:
+Find and run the bundled and user Luau algorithms:
 
 ```cpp
 #include <PhosphorTiles/AlgorithmRegistry.h>
@@ -95,7 +69,7 @@ AutotileLayoutSource src(&reg);
 // … src is an ILayoutSource the same way ZonesLayoutSource is.
 ```
 
-A minimal Luau algorithm (e.g. `$XDG_DATA_HOME/<app>/algorithms/vstack.luau`):
+A minimal Luau algorithm (for example `$XDG_DATA_HOME/phosphor-works/algorithms/vstack.luau`):
 
 ```lua
 -- Single column, each window gets an equal vertical slice.
@@ -120,33 +94,36 @@ return pluau.algorithm {
 
 ## Design notes
 
-- **Library is algorithms + state. Engine and host live elsewhere.** The
-  runtime engine that drives tiling (window-open / focus / float events) is
-  [`phosphor-tile-engine`](../phosphor-tile-engine/README.md). The generic Luau
-  VM host is [`phosphor-scripting`](../phosphor-scripting/README.md). This
-  separation keeps a settings-UI preview from linking the engine just to render
-  a thumbnail, and keeps the Luau host reusable beyond tiling.
-- **The sandbox is defensive.** `LuauEngine` freezes the global table and the
-  `pluau` stdlib (`luaL_sandbox`) before any untrusted script runs, leaving no
-  `io`, `os.execute`, filesystem, or network access. It bounds both run time
-  (the watchdog) and heap (the capped allocator).
-- **Algorithms consume positions, not window IDs.** They take a
-  `TilingParams` carrying window count, usable area, inner gap, per-window
-  metadata, screen info, and custom params, and return a list of zone
-  rects. The consuming layer maps windows to zones afterward, so the same
-  algorithm drives preview rendering without owning any window bindings.
-- **Preview render is headless.** `AutotilePreviewRender` paints a layout
-  thumbnail a picker can use in `QListView` delegates.
+- **The library holds the algorithms and the state. The engine and the host are elsewhere.** The runtime engine
+  that drives tiling (window-open, focus and float events) is
+  [`phosphor-tile-engine`](../phosphor-tile-engine/README.md). The generic Luau VM host is
+  [`phosphor-scripting`](https://github.com/phosphor-works/phosphor-libs/blob/main/libs/phosphor-scripting/README.md).
+  Because of this split, a settings-UI preview does not link the engine to render a thumbnail. Also, the Luau host
+  can be used for more than tiling.
+- **The sandbox is defensive.** `LuauEngine` freezes the global table and the `pluau` stdlib (`luaL_sandbox`)
+  before an untrusted script runs. A script has no `io`, no `os.execute`, and no filesystem or network access. The
+  engine limits both the run time (the watchdog) and the heap (the capped allocator).
+- **Algorithms use positions, not window IDs.** An algorithm takes a `TilingParams` and returns a list of zone
+  rects. `TilingParams` carries the window count, usable area, inner gap, per-window metadata, screen info and
+  custom params. The consuming layer then maps windows to zones. Thus the same algorithm drives preview rendering
+  and owns no window bindings.
+- **Preview render is headless.** `AutotilePreviewRender` paints a layout thumbnail that a picker can use in
+  `QListView` delegates.
 
 ## Dependencies
 
 - `QtCore`
-- [`phosphor-scripting`](../phosphor-scripting/README.md) — the embedded Luau host (`LuauEngine`, `LuauWatchdog`)
-- [`phosphor-layout-api`](../phosphor-layout-api/README.md) — `ILayoutSource` + factory + registry contracts
-- [`phosphor-engine`](../phosphor-engine/README.md) — `IPlacementState` (implemented by `TilingState`)
-- [`phosphor-fsloader`](../phosphor-fsloader/README.md) — filesystem-backed registry skeleton for algorithm discovery
+- [`phosphor-scripting`](https://github.com/phosphor-works/phosphor-libs/blob/main/libs/phosphor-scripting/README.md):
+  the embedded Luau host (`LuauEngine`, `LuauWatchdog`)
+- [`phosphor-layout-api`](https://github.com/phosphor-works/phosphor-libs/blob/main/libs/phosphor-layout-api/README.md):
+  the `ILayoutSource`, factory and registry contracts
+- [`phosphor-engine`](../phosphor-engine/README.md): `IPlacementState` (`TilingState` implements it)
+- [`phosphor-fsloader`](https://github.com/phosphor-works/phosphor-libs/blob/main/libs/phosphor-fsloader/README.md):
+  the filesystem-backed registry skeleton for algorithm discovery
 
 ## See also
 
-- [`phosphor-tile-engine`](../phosphor-tile-engine/README.md) — runtime engine that drives algorithms in response to window events.
-- [`phosphor-scripting`](../phosphor-scripting/README.md) — the generic embedded Luau host.
+- [`phosphor-tile-engine`](../phosphor-tile-engine/README.md): the runtime engine that drives algorithms when
+  window events occur.
+- [`phosphor-scripting`](https://github.com/phosphor-works/phosphor-libs/blob/main/libs/phosphor-scripting/README.md):
+  the generic embedded Luau host.

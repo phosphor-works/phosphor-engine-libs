@@ -27,7 +27,7 @@
 
 namespace PhosphorRules {
 class MatchExpression;
-class Rule;
+struct Rule;
 } // namespace PhosphorRules
 
 namespace PhosphorZones::RuleHelpers {

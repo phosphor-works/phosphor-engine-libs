@@ -21,7 +21,7 @@ class LuauWatchdog;
 
 namespace PhosphorTiles {
 
-class SplitNode;
+struct SplitNode;
 
 /**
  * @brief A tiling algorithm backed by a user-provided Luau script.

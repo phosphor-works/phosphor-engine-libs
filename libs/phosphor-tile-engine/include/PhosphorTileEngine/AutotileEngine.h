@@ -43,7 +43,7 @@ Q_MOC_INCLUDE("PhosphorZones/Layout.h")
 
 namespace PhosphorTileEngine {
 
-class AutotileConfig;
+struct AutotileConfig;
 struct TileEvacueePark;
 
 class NavigationController;

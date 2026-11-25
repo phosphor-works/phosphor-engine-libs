@@ -21,7 +21,7 @@ namespace PhosphorTileEngine {
 
 namespace PerScreenKeys = PhosphorEngine::PerScreenKeys;
 
-class AutotileConfig;
+struct AutotileConfig;
 class AutotileEngine;
 
 /**

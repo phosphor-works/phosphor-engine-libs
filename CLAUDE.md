@@ -25,9 +25,16 @@ phosphor-engine-libs' own. The shared Claude Code tooling (the command guard, `p
   `PHOSPHORCONTEXTRESOLVER_EXPORT`. `phosphor-workspaces` also builds `PhosphorWorkspacesPlasma`
   (`PHOSPHORWORKSPACESPLASMA_EXPORT`, `PhosphorWorkspaces::Plasma`) when PlasmaActivities is found.
 - QML module: `org.phosphor.zonerendering`. The engine runtime ships the overlay QML and a translation catalog.
-- `data/schemas/layout.schema.json` is the layout file's schema. PlasmaZones' `scripts/validate-json-schemas.py`
-  reads it from the pinned commit. The layout contract itself (`ILayoutSource`, `LayoutPreview`, the zone JSON keys)
-  is `phosphor-layout-api` in phosphor-libs.
+- `data/` holds the data the engines load: the snapping layouts (`layouts/`), the Luau tiling algorithms
+  (`algorithms/`, with the `.luaurc` that declares the `pluau` global) and the scrolling templates
+  (`scrolling-templates/`), with their schemas in `data/schemas/`. The root `CMakeLists.txt` installs them to
+  `share/phosphor-works/{layouts,algorithms,scrolling-templates}`, as a subproject too, so the app that adds this
+  tree ships them. It names the tree in `PHOSPHOR_ENGINE_LIBS_DATA_DIR` for an app's tests.
+- `test_bundled_data` (in the engine runtime's tests) checks each layout and template against its schema and parser,
+  and loads each algorithm. PlasmaZones also checks the pinned data: its schema gate, the `engine-data-prose` rule
+  for the user-facing text, and `luau-analyze` in its CI. The layout contract itself (`ILayoutSource`,
+  `LayoutPreview`, the zone JSON keys) is `phosphor-layout-api` in phosphor-libs.
+- The layouts, algorithms and templates are user-facing text: names and descriptions follow the writing rules.
 
 ## Layering
 

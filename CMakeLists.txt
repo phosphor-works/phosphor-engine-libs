@@ -173,6 +173,37 @@ add_subdirectory(libs/phosphor-zone-rendering)   # zone overlays drawn with shad
 add_subdirectory(libs/phosphor-engine-runtime)   # the placement engine runtime a host embeds - depends on the engines, zones, screens, config, animation, layer/overlay/surfaces and zone rendering
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Data
+# ═══════════════════════════════════════════════════════════════════════════════
+# The data the engines load: the snapping layouts, the Luau tiling algorithms
+# and the scrolling templates. They install under the suite folder, where the
+# engine runtime finds them through XDG_DATA_DIRS whichever host embeds it. The
+# rules run as a subproject too, so an app that adds this tree ships them.
+# PHOSPHOR_ENGINE_LIBS_DATA_DIR names the source tree, for an app's tests and
+# checks that read the bundled files.
+
+set(PHOSPHOR_ENGINE_LIBS_DATA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/data" CACHE INTERNAL "")
+
+include("${PHOSPHOR_LIBS_CMAKE_DIR}/PhosphorSuite.cmake")
+if(NOT DEFINED KDE_INSTALL_DATADIR)
+    include(GNUInstallDirs)
+    set(KDE_INSTALL_DATADIR ${CMAKE_INSTALL_DATAROOTDIR})
+endif()
+
+install(DIRECTORY data/layouts/
+    DESTINATION ${KDE_INSTALL_DATADIR}/${PHOSPHOR_SUITE_DIRECTORY_NAME}/layouts
+    FILES_MATCHING PATTERN "*.json"
+)
+install(DIRECTORY data/scrolling-templates/
+    DESTINATION ${KDE_INSTALL_DATADIR}/${PHOSPHOR_SUITE_DIRECTORY_NAME}/scrolling-templates
+    FILES_MATCHING PATTERN "*.json"
+)
+install(DIRECTORY data/algorithms/
+    DESTINATION ${KDE_INSTALL_DATADIR}/${PHOSPHOR_SUITE_DIRECTORY_NAME}/algorithms
+    FILES_MATCHING PATTERN "*.luau"
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Engine QML firewall
 # ═══════════════════════════════════════════════════════════════════════════════
 

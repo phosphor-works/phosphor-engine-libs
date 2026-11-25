@@ -47,3 +47,11 @@ phosphorengineruntime_add_test(test_settings_model)
 phosphorengineruntime_add_test(test_core_helpers)
 phosphorengineruntime_add_test(test_drag_activation)
 phosphorengineruntime_add_test(test_adopt_previous_locations)
+
+# The bundled data in data/ at this tree's root: every layout and scrolling
+# template against its schema and parser, every algorithm through the loader.
+phosphorengineruntime_add_test(test_bundled_data)
+target_link_libraries(test_bundled_data PRIVATE PhosphorFsLoader::PhosphorFsLoader PhosphorTiles::PhosphorTiles
+                                                PhosphorZones::PhosphorZones)
+target_compile_definitions(test_bundled_data
+    PRIVATE "PHOSPHOR_ENGINE_DATA_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/../../../data\"")

@@ -693,7 +693,7 @@ private Q_SLOTS:
                 },
                 {lone}, lone, lone, EdgeDrag{lowDrag, highDrag, 0, 0});
         };
-        const int always = static_cast<int>(PhosphorScrollEngine::CenterFocusedColumn::Always);
+        constexpr int always = static_cast<int>(PhosphorScrollEngine::CenterFocusedColumn::Always);
         const int never = static_cast<int>(PhosphorScrollEngine::CenterFocusedColumn::Never);
 
         // Precondition the arithmetic below leans on: a centred 600px column
@@ -763,8 +763,8 @@ private Q_SLOTS:
     void theCentredResizeDoublingHasItsLimits()
     {
         const QString lone = QStringLiteral("app|a");
-        const int always = static_cast<int>(PhosphorScrollEngine::CenterFocusedColumn::Always);
-        const auto alwaysCentred = [always](ScrollTestUtils::StubScrollSettings* settings) {
+        constexpr int always = static_cast<int>(PhosphorScrollEngine::CenterFocusedColumn::Always);
+        const auto alwaysCentred = [](ScrollTestUtils::StubScrollSettings* settings) {
             settings->centerFocused = always;
         };
 
@@ -796,7 +796,7 @@ private Q_SLOTS:
         // A panned (detached) view: the drag is taken as it is.
         const QString b = QStringLiteral("app|b");
         const ResizeOutcome detached = resizeOneWindow(
-            [always](ScrollTestUtils::StubScrollSettings* settings) {
+            [](ScrollTestUtils::StubScrollSettings* settings) {
                 settings->centerFocused = always;
                 settings->widthValue = 0.5;
             },

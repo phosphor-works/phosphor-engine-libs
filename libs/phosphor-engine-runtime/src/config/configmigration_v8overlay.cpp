@@ -33,7 +33,6 @@ namespace {
 // are gone) and the OverlayShaderTree JSON field names they land in.
 constexpr QLatin1String kSidecarShaderId{"shaderId"};
 constexpr QLatin1String kSidecarShaderParams{"shaderParams"};
-constexpr QLatin1String kTreeBaseline{"baseline"};
 constexpr QLatin1String kTreeOverrides{"overrides"};
 constexpr QLatin1String kNodeShaderId{"shaderId"};
 constexpr QLatin1String kNodeParameters{"parameters"};

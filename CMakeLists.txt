@@ -375,6 +375,30 @@ if(PHOSPHOR_ENGINE_LIBS_TOP_LEVEL)
         phosphor_share_test_pch()
     endif()
 
+    # The PhosphorEngineLibs package: a config that finds the library packages
+    # as components and names the installed data
+    # (cmake/PhosphorEngineLibsConfig.cmake.in). Only a top-level build installs
+    # it: an app that builds this tree in its own needs no installed copy.
+    include(CMakePackageConfigHelpers)
+    set(_phosphor_engine_libs_package_dir "${KDE_INSTALL_LIBDIR}/cmake/PhosphorEngineLibs")
+    set(PHOSPHOR_ENGINE_LIBS_DATA_INSTALL_DIR "${KDE_INSTALL_DATADIR}/${PHOSPHOR_SUITE_DIRECTORY_NAME}")
+    configure_package_config_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/PhosphorEngineLibsConfig.cmake.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/PhosphorEngineLibsConfig.cmake"
+        INSTALL_DESTINATION "${_phosphor_engine_libs_package_dir}"
+        PATH_VARS PHOSPHOR_ENGINE_LIBS_DATA_INSTALL_DIR
+    )
+    write_basic_package_version_file(
+        "${CMAKE_CURRENT_BINARY_DIR}/PhosphorEngineLibsConfigVersion.cmake"
+        VERSION ${PROJECT_VERSION}
+        COMPATIBILITY SameMinorVersion
+    )
+    install(FILES
+        "${CMAKE_CURRENT_BINARY_DIR}/PhosphorEngineLibsConfig.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/PhosphorEngineLibsConfigVersion.cmake"
+        DESTINATION "${_phosphor_engine_libs_package_dir}"
+    )
+
     feature_summary(WHAT REQUIRED_PACKAGES_FOUND REQUIRED_PACKAGES_NOT_FOUND
                          OPTIONAL_PACKAGES_FOUND OPTIONAL_PACKAGES_NOT_FOUND
                     FATAL_ON_MISSING_REQUIRED_PACKAGES)

@@ -14,6 +14,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The
 
 - `PHOSPHOR_USE_INSTALLED_LIBS`: with this CMake option on, the build uses the installed `PhosphorLibs` package
   instead of the pinned phosphor-libs archive, and fetches nothing. It is off by default.
+- A `PhosphorEngineLibs` CMake package. `find_package(PhosphorEngineLibs 0.1 COMPONENTS PhosphorZones ...)` finds
+  the installed library packages as components, and sets `PHOSPHOR_ENGINE_LIBS_DATA_DIR` to the installed layouts,
+  algorithms and scrolling templates.
 
 ## [0.1.0] - 2026-11-26
 

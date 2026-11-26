@@ -10,6 +10,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The
 
 ## [Unreleased]
 
+### Added
+
+- `PHOSPHOR_USE_INSTALLED_LIBS`: with this CMake option on, the build uses the installed `PhosphorLibs` package
+  instead of the pinned phosphor-libs archive, and fetches nothing. It is off by default.
+
 ## [0.1.0] - 2026-11-26
 
 The first release. It has 11 libraries: `phosphor-context-resolver`, `phosphor-engine-runtime`, `phosphor-engine`, `phosphor-placement`, `phosphor-scroll-engine`, `phosphor-snap-engine`, `phosphor-tile-engine`, `phosphor-tiles`, `phosphor-workspaces`, `phosphor-zone-rendering`, `phosphor-zones`. The tag `v0.1.0` is commit `bc9c772c`, which PlasmaZones pins.

@@ -284,10 +284,10 @@ namespace PerScreenKeys = PhosphorEngine::PerScreenKeys;
  */
 inline constexpr auto& RestoreSentinel = PhosphorEngine::RestoreSentinel;
 
-// D-Bus identity constants for the daemon protocol AND the settings / editor
-// sub-application instances live in PhosphorProtocol::Service (daemon
-// interfaces) and PhosphorProtocol::Service::Apps (sub-app instances).
-// Consumers reference them qualified directly — no aliases here.
+// D-Bus identity constants for the daemon protocol live in
+// PhosphorProtocol::Service. The settings and editor programs' own identities
+// belong to the app that ships them. Consumers reference them qualified
+// directly — no aliases here.
 
 // LayoutId lives in libs/phosphor-layout-api as `PhosphorLayout::LayoutId`.
 // All PlasmaZones-side callers reference it qualified directly — no alias

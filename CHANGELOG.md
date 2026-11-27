@@ -10,6 +10,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The
 
 ## [Unreleased]
 
+### Changed
+
+- Builds on phosphor-libs `bf8bf88b`, which installs the licence notices of the Wayland protocols that
+  phosphor-wayland compiles in (phosphor-works/PlasmaZones#1193).
+
 ### Fixed
 
 - `phosphor-engine-runtime`: the snap channel routes a window that opened before the daemon was ready. The daemon-ready sweep counts as a first placement for a window that no engine placed, which `WindowTracker::wasPlacedByAnyEngine` decides from engine slots, not from the geometry-only record. The tiling channel uses the same test. ([PlasmaZones#1315](https://github.com/phosphor-works/PlasmaZones/issues/1315))

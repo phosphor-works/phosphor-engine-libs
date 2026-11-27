@@ -2,13 +2,15 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 
 // The compositor's fullscreen hold (ScrollEngine::setWindowFullscreenFloat):
-// a strip tile entering its OWN fullscreen leaves the strip with a user
-// float's slot memory but a PASSIVE announcement, comes back to the same slot
-// at the same width, never takes over or undoes a user float, keeps answering
-// the hold through a close until the daemon's capture has read it, and is
-// returned by a re-announce when the effect has lost its record (a restart).
+// a strip tile entering its OWN fullscreen keeps its column, so no other
+// column moves while it covers its output (#1266). The hold is not a float:
+// nothing is announced, the strip is not laid out again, and the end of the
+// hold finds the tile where it was. The hold never takes over or undoes a user
+// float, keeps an opening window out of the held column, keeps answering
+// through a close until the daemon's capture has read it, and ends on a
+// re-announce when the effect has lost its record (a restart).
 // Its own file rather than more of the maximize suite that holds the other
-// fullscreen arms, since the hold is a float transition with its own contract.
+// fullscreen arms, since the hold has its own contract.
 
 #include <PhosphorScrollEngine/ScrollEngine.h>
 #include <PhosphorScrollEngine/ScrollState.h>
@@ -16,16 +18,15 @@
 #include <PhosphorEngine/WindowPlacement.h>
 
 #include "scrollstriptestutils.h"
+#include "scrollstubsettings.h"
 
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
 #include <QSignalSpy>
 #include <QtTest>
 
 using namespace PhosphorScrollEngine;
 
 using ScrollTestUtils::makeProviderEngine;
+using ScrollTestUtils::StubScrollSettings;
 
 namespace {
 
@@ -51,16 +52,16 @@ ScrollEngine* threeColumns(QObject* owner)
     return engine;
 }
 
-/// The window ids the latest windowsTiled batch carried.
-QSet<QString> windowsInLatestBatch(const QSignalSpy& tiled)
+/// Each column's window ids, in strip order.
+QList<QStringList> columnsOf(const ScrollState* state)
 {
-    QSet<QString> out;
-    if (tiled.isEmpty()) {
-        return out;
-    }
-    const QJsonDocument doc = QJsonDocument::fromJson(tiled.last().at(0).toString().toUtf8());
-    for (const QJsonValue& entry : doc.array()) {
-        out.insert(entry.toObject().value(QLatin1String("windowId")).toString());
+    QList<QStringList> out;
+    for (const Column& column : state->strip().columns()) {
+        QStringList ids;
+        for (const Tile& tile : column.tiles) {
+            ids.append(tile.windowId);
+        }
+        out.append(ids);
     }
     return out;
 }
@@ -79,128 +80,91 @@ private Q_SLOTS:
         AX_GUARD_SUITE();
     }
 
-    void theHoldLeavesTheStripPassivelyAndReturnsToTheSlot();
-    void aSecondHoldAndReturnCycleLandsInTheSameSlot();
-    void theHoldIsAlreadySetWhenThePassiveAnnouncementFires();
+    void theHoldKeepsTheColumnAndMovesNoNeighbour();
+    void aSecondHoldAndReturnCycleKeepsTheSlot();
     void aUserFloatIsNeitherTakenOverNorUndone();
-    void aUserUnfloatDuringTheHoldEndsIt();
-    void aReAnnounceDuringTheHoldReturnsTheWindow();
+    void aUserFloatDuringTheHoldEndsIt();
+    void aReAnnounceDuringTheHoldEndsIt();
     void anUntrackedWindowIsRefused();
-    void aReturnWhoseStackAnchorHasClosedOpensAFreshColumn();
-    void aHoldOfTheOnlyWindowEmptiesTheStripAndTheReturnRefillsIt();
-    void aHeldTabReturnsToItsTabGroup();
-    void aHeldWindowHasNoPlacementToCapture();
+    void anOpeningWindowDoesNotJoinTheHeldColumn();
+    void aSameAppOpenDoesNotJoinTheHeldColumnAsATab();
+    void aHeldTabStaysInItsTabGroup();
+    void aHeldWindowIsCapturedTiled();
+    void aCommittedSizeReportDuringTheHoldIsIgnored();
     void aCloseDuringTheHoldKeepsTheHoldAnswerUntilThePrune();
     void aReopenOfAClosedHeldWindowConsumesTheHoldAnswer();
-    void aModeReleaseAnnouncesTheHoldClearBeforeWindowsReleased();
-    void aModeReleaseOfAMultiDesktopWindowAnnouncesTheHoldClear();
+    void aModeReleaseEndsTheHoldWithoutAFloatAnnouncement();
 };
 
-void TestScrollEngineFullscreenFloat::theHoldLeavesTheStripPassivelyAndReturnsToTheSlot()
+void TestScrollEngineFullscreenFloat::theHoldKeepsTheColumnAndMovesNoNeighbour()
 {
     QObject owner;
     ScrollEngine* engine = threeColumns(&owner);
     ScrollState* state = stateFor(engine);
     QVERIFY(state);
-    QCOMPARE(state->strip().columnCount(), 3);
-    QCOMPARE(state->strip().columnOfWindow(kB), 1);
-    // A width the context default cannot produce, so the return proves the
-    // slot memory rather than a rebuild at the default.
+    // A width the context default cannot produce, so the end of the hold
+    // proves the column kept it.
     engine->setColumnWidth(ColumnWidth::makeFixed(377), kScreen);
     QCoreApplication::processEvents();
+    const QList<QStringList> before = columnsOf(state);
+    const int anchorBefore = state->strip().viewAnchor();
 
     QSignalSpy passive(engine, &PhosphorEngine::PlacementEngineBase::windowFloatingStateSynced);
     QSignalSpy active(engine, &PhosphorEngine::PlacementEngineBase::windowFloatingChanged);
     QSignalSpy tiled(engine, &ScrollEngine::windowsTiled);
 
-    // A foreign screen hint: the engine acts on, and announces, the window's
-    // own tracked screen.
+    // A foreign screen hint: the engine acts on the window's own screen.
     QVERIFY(engine->setWindowFullscreenFloat(kB, true, QStringLiteral("S9")));
-    QVERIFY(state->isFloating(kB));
-    QVERIFY(engine->isFullscreenFloated(kB));
-    QCOMPARE(state->strip().columnCount(), 2);
     QCoreApplication::processEvents();
-    // The neighbours close up on the wire: the batch omits the held window.
-    QVERIFY(!windowsInLatestBatch(tiled).contains(kB));
-    QVERIFY(windowsInLatestBatch(tiled).contains(kA));
-    QVERIFY(windowsInLatestBatch(tiled).contains(kC));
-    // Passive channel only: no float OSD, no free-geometry restore.
-    QCOMPARE(passive.count(), 1);
-    QCOMPARE(passive.last().at(0).toString(), kB);
-    QCOMPARE(passive.last().at(1).toBool(), true);
-    QCOMPARE(passive.last().at(2).toString(), kScreen);
+    QVERIFY(engine->isFullscreenHeld(kB));
+    QVERIFY(!state->isFloating(kB));
+    // The strip is as it was: the same columns, the same view, the same focus.
+    // Taking the tile out let the next column slide into its slot (#1266).
+    QCOMPARE(columnsOf(state), before);
+    QCOMPARE(state->strip().viewAnchor(), anchorBefore);
+    QCOMPARE(state->strip().activeWindowId(), kB);
+    QCOMPARE(state->strip().columns().at(1).width, ColumnWidth::makeFixed(377));
+    // Nothing is announced and no batch goes out: no neighbour gets a rect.
+    QCOMPARE(passive.count(), 0);
     QCOMPARE(active.count(), 0);
-    // A re-hold of OUR hold is idempotent and answers true: the effect
-    // re-enters after a lost return and must not read "refused" as "not ours".
+    QCOMPARE(tiled.count(), 0);
+    // A repeat hold answers true and changes nothing: the effect re-enters
+    // after a lost reply and must not read "refused" as "not ours".
     QVERIFY(engine->setWindowFullscreenFloat(kB, true, kScreen));
-    QVERIFY(engine->isFullscreenFloated(kB));
-    QCOMPARE(state->strip().columnCount(), 2);
-    QCOMPARE(passive.count(), 1);
+    QVERIFY(engine->isFullscreenHeld(kB));
 
     QVERIFY(engine->setWindowFullscreenFloat(kB, false, kScreen));
+    QCoreApplication::processEvents();
+    QVERIFY(!engine->isFullscreenHeld(kB));
     QVERIFY(!state->isFloating(kB));
-    QVERIFY(!engine->isFullscreenFloated(kB));
-    QCOMPARE(state->strip().columnCount(), 3);
-    QCOMPARE(state->strip().columnOfWindow(kB), 1);
+    QCOMPARE(columnsOf(state), before);
     QCOMPARE(state->strip().columns().at(1).width, ColumnWidth::makeFixed(377));
-    QCOMPARE(passive.count(), 2);
-    QCOMPARE(passive.last().at(1).toBool(), false);
-    QCOMPARE(passive.last().at(2).toString(), kScreen);
+    QCOMPARE(passive.count(), 0);
     QCOMPARE(active.count(), 0);
-    // The return consumed the hold; a second return has nothing to undo.
+    // The end of the hold has nothing left to end a second time.
     QVERIFY(!engine->setWindowFullscreenFloat(kB, false, kScreen));
 }
 
-void TestScrollEngineFullscreenFloat::aSecondHoldAndReturnCycleLandsInTheSameSlot()
+void TestScrollEngineFullscreenFloat::aSecondHoldAndReturnCycleKeepsTheSlot()
 {
     QObject owner;
     ScrollEngine* engine = threeColumns(&owner);
     ScrollState* state = stateFor(engine);
     QVERIFY(state);
-    QSignalSpy passive(engine, &PhosphorEngine::PlacementEngineBase::windowFloatingStateSynced);
-    QSignalSpy active(engine, &PhosphorEngine::PlacementEngineBase::windowFloatingChanged);
+    const QList<QStringList> before = columnsOf(state);
 
     for (int cycle = 0; cycle < 2; ++cycle) {
         QVERIFY2(engine->setWindowFullscreenFloat(kB, true, kScreen),
                  qPrintable(QStringLiteral("hold, cycle %1").arg(cycle)));
-        QCOMPARE(state->strip().columnCount(), 2);
-        QVERIFY(engine->isFullscreenFloated(kB));
+        QVERIFY(engine->isFullscreenHeld(kB));
+        QCOMPARE(columnsOf(state), before);
         QVERIFY2(engine->setWindowFullscreenFloat(kB, false, kScreen),
                  qPrintable(QStringLiteral("return, cycle %1").arg(cycle)));
         QCoreApplication::processEvents();
-        QCOMPARE(state->strip().columnCount(), 3);
-        QCOMPARE(state->strip().columnOfWindow(kB), 1);
-        QVERIFY(!state->isFloating(kB));
-        QVERIFY(!engine->isFullscreenFloated(kB));
+        QCOMPARE(columnsOf(state), before);
+        QVERIFY(!engine->isFullscreenHeld(kB));
     }
-    // Two announcements per cycle, all passive.
-    QCOMPARE(passive.count(), 4);
-    QCOMPARE(active.count(), 0);
-    // A THIRD return has nothing of ours left to undo.
     QVERIFY(!engine->setWindowFullscreenFloat(kB, false, kScreen));
-}
-
-void TestScrollEngineFullscreenFloat::theHoldIsAlreadySetWhenThePassiveAnnouncementFires()
-{
-    QObject owner;
-    ScrollEngine* engine = threeColumns(&owner);
-    int seen = 0;
-    bool heldInsideHandler = false;
-    QObject::connect(engine, &PhosphorEngine::PlacementEngineBase::windowFloatingStateSynced, engine,
-                     [&](const QString& windowId, bool floating, const QString&) {
-                         if (windowId == kB && floating) {
-                             ++seen;
-                             // The daemon's capture runs synchronously inside
-                             // this announcement and classifies the float by
-                             // this probe.
-                             heldInsideHandler = engine->isFullscreenFloated(kB);
-                         }
-                     });
-    QVERIFY(engine->setWindowFullscreenFloat(kB, true, kScreen));
-    QCOMPARE(seen, 1);
-    QVERIFY2(
-        heldInsideHandler,
-        "the hold must be on the slot before the passive announcement, or the daemon captures it as a plain float");
 }
 
 void TestScrollEngineFullscreenFloat::aUserFloatIsNeitherTakenOverNorUndone()
@@ -213,12 +177,12 @@ void TestScrollEngineFullscreenFloat::aUserFloatIsNeitherTakenOverNorUndone()
     engine->setWindowFloat(kB, true, kScreen);
     QVERIFY(state->isFloating(kB));
     QVERIFY(!engine->setWindowFullscreenFloat(kB, true, kScreen));
-    QVERIFY(!engine->isFullscreenFloated(kB));
+    QVERIFY(!engine->isFullscreenHeld(kB));
     QVERIFY(!engine->setWindowFullscreenFloat(kB, false, kScreen));
     QVERIFY(state->isFloating(kB));
 }
 
-void TestScrollEngineFullscreenFloat::aUserUnfloatDuringTheHoldEndsIt()
+void TestScrollEngineFullscreenFloat::aUserFloatDuringTheHoldEndsIt()
 {
     QObject owner;
     ScrollEngine* engine = threeColumns(&owner);
@@ -226,34 +190,31 @@ void TestScrollEngineFullscreenFloat::aUserUnfloatDuringTheHoldEndsIt()
     QVERIFY(state);
 
     QVERIFY(engine->setWindowFullscreenFloat(kB, true, kScreen));
-    engine->setWindowFloat(kB, false, kScreen);
-    QVERIFY(!state->isFloating(kB));
-    QVERIFY(!engine->isFullscreenFloated(kB));
-    // The user's unfloat lands in the same slot the hold remembered.
-    QCOMPARE(state->strip().columnCount(), 3);
-    QCOMPARE(state->strip().columnOfWindow(kB), 1);
-    // The compositor's later return finds nothing of its own to undo.
+    engine->setWindowFloat(kB, true, kScreen);
+    QVERIFY(state->isFloating(kB));
+    QVERIFY(!engine->isFullscreenHeld(kB));
+    // The compositor's later return finds no hold of its own to end, and the
+    // user's float stands.
     QVERIFY(!engine->setWindowFullscreenFloat(kB, false, kScreen));
-    QVERIFY(!state->isFloating(kB));
+    QVERIFY(state->isFloating(kB));
 }
 
-void TestScrollEngineFullscreenFloat::aReAnnounceDuringTheHoldReturnsTheWindow()
+void TestScrollEngineFullscreenFloat::aReAnnounceDuringTheHoldEndsIt()
 {
     QObject owner;
     ScrollEngine* engine = threeColumns(&owner);
     ScrollState* state = stateFor(engine);
     QVERIFY(state);
+    const QList<QStringList> before = columnsOf(state);
 
     QVERIFY(engine->setWindowFullscreenFloat(kB, true, kScreen));
-    QCOMPARE(state->strip().columnCount(), 2);
     // An effect that lost its record of the hold (a restart) announces the
-    // window when it leaves fullscreen; the engine treats that as the return.
+    // window when it leaves fullscreen. The tile never left its column.
     engine->windowOpened(kB, kScreen, 0, 0);
     QCoreApplication::processEvents();
+    QVERIFY(!engine->isFullscreenHeld(kB));
     QVERIFY(!state->isFloating(kB));
-    QVERIFY(!engine->isFullscreenFloated(kB));
-    QCOMPARE(state->strip().columnCount(), 3);
-    QCOMPARE(state->strip().columnOfWindow(kB), 1);
+    QCOMPARE(columnsOf(state), before);
 }
 
 void TestScrollEngineFullscreenFloat::anUntrackedWindowIsRefused()
@@ -262,65 +223,68 @@ void TestScrollEngineFullscreenFloat::anUntrackedWindowIsRefused()
     ScrollEngine* engine = threeColumns(&owner);
     QVERIFY(!engine->setWindowFullscreenFloat(QStringLiteral("app|zzz"), true, kScreen));
     QVERIFY(!engine->setWindowFullscreenFloat(QStringLiteral("app|zzz"), false, kScreen));
-    QVERIFY(!engine->isFullscreenFloated(QStringLiteral("app|zzz")));
+    QVERIFY(!engine->isFullscreenHeld(QStringLiteral("app|zzz")));
 }
 
-void TestScrollEngineFullscreenFloat::aReturnWhoseStackAnchorHasClosedOpensAFreshColumn()
+void TestScrollEngineFullscreenFloat::anOpeningWindowDoesNotJoinTheHeldColumn()
 {
+    // A consume rule puts an opening window into the active column. While
+    // that column is fullscreen, the window takes a column of its own.
     QObject owner;
-    ScrollEngine* engine = makeProviderEngine(&owner, {kScreen});
-    engine->windowOpened(kA, kScreen, 0, 0);
-    engine->windowOpened(kB, kScreen, 0, 0);
-    engine->windowOpened(kC, kScreen, 0, 0);
-    // Fold b into a's column so the hold records a as b's stack anchor.
-    engine->windowFocused(kA, kScreen);
-    engine->consumeWindowIntoColumn(kScreen);
-    engine->windowFocused(kB, kScreen);
-    QCoreApplication::processEvents();
+    ScrollEngine* engine = threeColumns(&owner);
     ScrollState* state = stateFor(engine);
     QVERIFY(state);
-    QCOMPARE(state->strip().columnCount(), 2);
-    QCOMPARE(state->strip().columnOfWindow(kA), state->strip().columnOfWindow(kB));
-
+    engine->setOpenParamsResolver([](const QString&, const QString&) {
+        ScrollOpenParams params;
+        params.consume = true;
+        return params;
+    });
     QVERIFY(engine->setWindowFullscreenFloat(kB, true, kScreen));
-    engine->windowClosed(kA);
+    const QString opened = QStringLiteral("other|d");
+    engine->windowOpened(opened, kScreen, 0, 0);
     QCoreApplication::processEvents();
-    QCOMPARE(state->strip().columnCount(), 1);
+    QCOMPARE(state->strip().columns().at(state->strip().columnOfWindow(kB)).tiles.size(), 1);
+    QVERIFY(state->strip().columnOfWindow(opened) >= 0);
+    QVERIFY(state->strip().columnOfWindow(opened) != state->strip().columnOfWindow(kB));
+    QCOMPARE(state->strip().columnCount(), 4);
 
+    // Once the hold ends, the rule joins the active column again.
     QVERIFY(engine->setWindowFullscreenFloat(kB, false, kScreen));
+    engine->windowFocused(kB, kScreen);
+    const QString later = QStringLiteral("other|e");
+    engine->windowOpened(later, kScreen, 0, 0);
     QCoreApplication::processEvents();
-    QVERIFY(!state->isFloating(kB));
-    QVERIFY(!engine->isFullscreenFloated(kB));
-    QCOMPARE(state->strip().columnCount(), 2);
-    QVERIFY(state->strip().columnOfWindow(kB) >= 0);
-    QVERIFY(state->strip().columnOfWindow(kB) != state->strip().columnOfWindow(kC));
+    QCOMPARE(state->strip().columnOfWindow(later), state->strip().columnOfWindow(kB));
 }
 
-void TestScrollEngineFullscreenFloat::aHoldOfTheOnlyWindowEmptiesTheStripAndTheReturnRefillsIt()
+void TestScrollEngineFullscreenFloat::aSameAppOpenDoesNotJoinTheHeldColumnAsATab()
 {
+    // The launcher-plus-game shape: with same-app tabs on, a game that shares
+    // its launcher's app id would open as a tab in the launcher's column.
+    // While that column is fullscreen, it opens in a column of its own.
     QObject owner;
+    auto* settings = new StubScrollSettings(&owner);
+    settings->groupSameAppAsTabs = true;
     ScrollEngine* engine = makeProviderEngine(&owner, {kScreen});
+    engine->setEngineSettings(settings);
+    engine->refreshConfigFromSettings();
     engine->windowOpened(kA, kScreen, 0, 0);
+    engine->windowOpened(QStringLiteral("other|x"), kScreen, 0, 0);
+    engine->windowFocused(kA, kScreen);
     QCoreApplication::processEvents();
     ScrollState* state = stateFor(engine);
     QVERIFY(state);
-    QCOMPARE(state->strip().columnCount(), 1);
+    QCOMPARE(state->strip().columnCount(), 2);
 
     QVERIFY(engine->setWindowFullscreenFloat(kA, true, kScreen));
-    QCOMPARE(state->strip().columnCount(), 0);
-    QVERIFY(engine->isFullscreenFloated(kA));
-
-    QVERIFY(engine->setWindowFullscreenFloat(kA, false, kScreen));
+    engine->windowOpened(kB, kScreen, 0, 0);
     QCoreApplication::processEvents();
-    QCOMPARE(state->strip().columnCount(), 1);
-    QCOMPARE(state->strip().columnOfWindow(kA), 0);
-    QVERIFY(!state->isFloating(kA));
+    QCOMPARE(state->strip().columnCount(), 3);
+    QVERIFY(state->strip().columnOfWindow(kB) != state->strip().columnOfWindow(kA));
 }
 
-void TestScrollEngineFullscreenFloat::aHeldTabReturnsToItsTabGroup()
+void TestScrollEngineFullscreenFloat::aHeldTabStaysInItsTabGroup()
 {
-    // The launcher-plus-game shape: the game is a TAB of its launcher's
-    // column when it goes fullscreen, and comes back as that tab.
     QObject owner;
     ScrollEngine* engine = makeProviderEngine(&owner, {kScreen});
     engine->windowOpened(kA, kScreen, 0, 0);
@@ -337,8 +301,8 @@ void TestScrollEngineFullscreenFloat::aHeldTabReturnsToItsTabGroup()
 
     QVERIFY(engine->setWindowFullscreenFloat(kB, true, kScreen));
     QCOMPARE(state->strip().columnCount(), 1);
-    QCOMPARE(state->strip().columns().first().display, ColumnDisplay::Tabbed);
-    QVERIFY(!state->strip().containsWindow(kB));
+    QCOMPARE(state->strip().columnOfWindow(kB), state->strip().columnOfWindow(kA));
+    QCOMPARE(state->strip().activeWindowId(), kB);
 
     QVERIFY(engine->setWindowFullscreenFloat(kB, false, kScreen));
     QCoreApplication::processEvents();
@@ -348,24 +312,34 @@ void TestScrollEngineFullscreenFloat::aHeldTabReturnsToItsTabGroup()
     QCOMPARE(state->strip().activeWindowId(), kB);
 }
 
-void TestScrollEngineFullscreenFloat::aHeldWindowHasNoPlacementToCapture()
+void TestScrollEngineFullscreenFloat::aHeldWindowIsCapturedTiled()
 {
+    // The hold is not a float, so a capture during it records the column the
+    // window keeps, and a reopen or a mode round trip tiles it.
     QObject owner;
     ScrollEngine* engine = threeColumns(&owner);
-    // Tiled: captured as a tiled slot, the ordinary answer.
-    const auto before = engine->capturePlacement(kB);
-    QVERIFY(before.has_value());
-    QCOMPARE(before->engines.value(engine->engineId()).state, QString(PhosphorEngine::WindowPlacement::stateTiled()));
-
     QVERIFY(engine->setWindowFullscreenFloat(kB, true, kScreen));
-    // A hold is not placement intent: recording it as a float slot would
-    // re-float the window, hold-less, on the next reopen or mode round trip.
-    QVERIFY(!engine->capturePlacement(kB).has_value());
+    const auto during = engine->capturePlacement(kB);
+    QVERIFY(during.has_value());
+    QCOMPARE(during->engines.value(engine->engineId()).state, QString(PhosphorEngine::WindowPlacement::stateTiled()));
+}
 
-    QVERIFY(engine->setWindowFullscreenFloat(kB, false, kScreen));
-    const auto after = engine->capturePlacement(kB);
-    QVERIFY(after.has_value());
-    QCOMPARE(after->engines.value(engine->engineId()).state, QString(PhosphorEngine::WindowPlacement::stateTiled()));
+void TestScrollEngineFullscreenFloat::aCommittedSizeReportDuringTheHoldIsIgnored()
+{
+    // During the hold the window's frame is the output rect, which is not an
+    // answer to its column. Taken as one, it set a floor that widened the
+    // column and moved its neighbours.
+    QObject owner;
+    ScrollEngine* engine = threeColumns(&owner);
+    ScrollState* state = stateFor(engine);
+    QVERIFY(state);
+    const ColumnWidth widthBefore = state->strip().columns().at(1).width;
+    QVERIFY(engine->setWindowFullscreenFloat(kB, true, kScreen));
+    QSignalSpy tiled(engine, &ScrollEngine::windowsTiled);
+    engine->reportCommittedSize(kB, QSize(600, 900), QSize(1920, 1080));
+    QCoreApplication::processEvents();
+    QCOMPARE(state->strip().columns().at(1).width, widthBefore);
+    QCOMPARE(tiled.count(), 0);
 }
 
 void TestScrollEngineFullscreenFloat::aCloseDuringTheHoldKeepsTheHoldAnswerUntilThePrune()
@@ -381,20 +355,20 @@ void TestScrollEngineFullscreenFloat::aCloseDuringTheHoldKeepsTheHoldAnswerUntil
     QCOMPARE(state->strip().columnCount(), 2);
     QVERIFY(!engine->isWindowTracked(kB));
     // The daemon's close capture runs AFTER Tiling.windowClosed and asks
-    // this, so the answer has to outlive the slot.
-    QVERIFY(engine->isFullscreenFloated(kB));
-    // The compositor's later return has no slot to undo.
+    // this, so the answer has to outlive the tile.
+    QVERIFY(engine->isFullscreenHeld(kB));
+    // The compositor's later return has no hold to end.
     QVERIFY(!engine->setWindowFullscreenFloat(kB, false, kScreen));
     QCOMPARE(state->strip().columnCount(), 2);
     // Spent by the capture; reaped on aliveness as the belt.
     engine->forgetClosedFullscreenHold(kB);
-    QVERIFY(!engine->isFullscreenFloated(kB));
+    QVERIFY(!engine->isFullscreenHeld(kB));
     QVERIFY(engine->setWindowFullscreenFloat(kA, true, kScreen));
     engine->windowClosed(kA);
-    QVERIFY(engine->isFullscreenFloated(kA));
+    QVERIFY(engine->isFullscreenHeld(kA));
     engine->pruneStaleWindows({kC});
     QCoreApplication::processEvents();
-    QVERIFY(!engine->isFullscreenFloated(kA));
+    QVERIFY(!engine->isFullscreenHeld(kA));
     QCOMPARE(state->strip().columnCount(), 1);
 }
 
@@ -406,110 +380,31 @@ void TestScrollEngineFullscreenFloat::aReopenOfAClosedHeldWindowConsumesTheHoldA
     QVERIFY(state);
     QVERIFY(engine->setWindowFullscreenFloat(kB, true, kScreen));
     engine->windowClosed(kB);
-    QVERIFY(engine->isFullscreenFloated(kB));
+    QVERIFY(engine->isFullscreenHeld(kB));
     engine->windowOpened(kB, kScreen, 0, 0);
     QCoreApplication::processEvents();
     QVERIFY(engine->isWindowTracked(kB));
-    QVERIFY(!engine->isFullscreenFloated(kB));
+    QVERIFY(!engine->isFullscreenHeld(kB));
     QVERIFY(!state->isFloating(kB));
     QCOMPARE(state->strip().columnCount(), 3);
 }
 
-void TestScrollEngineFullscreenFloat::aModeReleaseAnnouncesTheHoldClearBeforeWindowsReleased()
+void TestScrollEngineFullscreenFloat::aModeReleaseEndsTheHoldWithoutAFloatAnnouncement()
 {
+    // The hold is not a float, so a release has no float bit to clear: the
+    // window leaves the engine as the tile it is.
     QObject owner;
     ScrollEngine* engine = threeColumns(&owner);
     QVERIFY(engine->setWindowFullscreenFloat(kB, true, kScreen));
-    QVERIFY(engine->isModeSpecificFloated(kB));
-
-    int order = 0;
-    int passiveAt = -1;
-    int releasedAt = -1;
-    bool trackedAtAnnounce = true;
-    bool markerVisibleInRelease = false;
-    QObject::connect(engine, &PhosphorEngine::PlacementEngineBase::windowFloatingStateSynced, engine,
-                     [&](const QString& windowId, bool floating, const QString&) {
-                         if (windowId == kB && !floating) {
-                             passiveAt = order++;
-                             // The daemon's else-arm clears the marker only
-                             // for a TRACKED window; a released one must read
-                             // untracked here.
-                             trackedAtAnnounce = engine->isWindowTracked(kB);
-                         }
-                     });
-    QObject::connect(engine, &PhosphorEngine::PlacementEngineBase::windowsReleased, engine,
-                     [&](const QStringList& ids, const QSet<QString>&) {
-                         if (ids.contains(kB)) {
-                             releasedAt = order++;
-                             markerVisibleInRelease = engine->isModeSpecificFloated(kB);
-                         }
-                     });
+    QVERIFY(!engine->isModeSpecificFloated(kB));
+    QSignalSpy passive(engine, &PhosphorEngine::PlacementEngineBase::windowFloatingStateSynced);
+    QSignalSpy released(engine, &PhosphorEngine::PlacementEngineBase::windowsReleased);
 
     engine->setActiveScreens({});
-    QVERIFY2(passiveAt >= 0, "the release must announce the hold clear");
-    QVERIFY2(releasedAt >= 0, "the release must emit windowsReleased for b");
-    QVERIFY2(passiveAt < releasedAt, "the passive clear must precede windowsReleased");
-    QVERIFY(!trackedAtAnnounce);
-    QVERIFY2(markerVisibleInRelease,
-             "the mode-specific float marker is an INPUT to the windowsReleased handler and must survive the announce");
-    QVERIFY(!engine->isFullscreenFloated(kB));
-}
-
-void TestScrollEngineFullscreenFloat::aModeReleaseOfAMultiDesktopWindowAnnouncesTheHoldClear()
-{
-    // The same release for a held window with a column on another desktop of
-    // the screen too. The teardown of the desktop in view keeps the window's
-    // memories while another strip still holds it, and the release then
-    // takes it out of that strip as well, so the hold has to go there, and be
-    // announced, or the window leaves the engine still reading as held.
-    QObject owner;
-    ScrollEngine* engine = makeProviderEngine(&owner, {kScreen});
-    engine->setCurrentDesktopForScreen(kScreen, 1);
-    for (const QString& id : {kA, kB, kC}) {
-        engine->windowOpened(id, kScreen, 0, 0);
-    }
-    engine->windowFocused(kB, kScreen);
-    QCoreApplication::processEvents();
-    const PhosphorEngine::DesktopSpanQuery spanOf = [](const QString& windowId) {
-        PhosphorEngine::DesktopSpan span;
-        span.known = true;
-        span.desktops = windowId == kB ? QSet<int>{1, 2} : QSet<int>{1};
-        return span;
-    };
-    engine->setCurrentDesktopForScreen(kScreen, 2);
-    QCOMPARE(engine->reconcileDesktopMemberships(kScreen, spanOf).adopted.size(), 1);
-    QCoreApplication::processEvents();
-    QVERIFY2(stateFor(engine) && stateFor(engine)->strip().containsWindow(kB),
-             "precondition: b has a column on desktop 2");
-    engine->setCurrentDesktopForScreen(kScreen, 1);
-    QVERIFY(engine->setWindowFullscreenFloat(kB, true, kScreen));
-    QVERIFY(engine->isFullscreenFloated(kB));
-
-    int order = 0;
-    int passiveAt = -1;
-    int releasedAt = -1;
-    QString announcedScreen = QStringLiteral("unset");
-    QObject::connect(engine, &PhosphorEngine::PlacementEngineBase::windowFloatingStateSynced, engine,
-                     [&](const QString& windowId, bool floating, const QString& screenId) {
-                         if (windowId == kB && !floating) {
-                             passiveAt = order++;
-                             announcedScreen = screenId;
-                         }
-                     });
-    QObject::connect(engine, &PhosphorEngine::PlacementEngineBase::windowsReleased, engine,
-                     [&](const QStringList& ids, const QSet<QString>&) {
-                         if (ids.contains(kB)) {
-                             releasedAt = order++;
-                         }
-                     });
-
-    engine->setActiveScreens({});
-
-    QVERIFY(!engine->isFullscreenFloated(kB));
-    QVERIFY2(passiveAt >= 0, "the release must announce the hold clear");
-    QVERIFY2(releasedAt >= 0, "the release must emit windowsReleased for b");
-    QVERIFY2(passiveAt < releasedAt, "the passive clear must precede windowsReleased");
-    QVERIFY(announcedScreen.isEmpty());
+    QVERIFY(!engine->isFullscreenHeld(kB));
+    QCOMPARE(passive.count(), 0);
+    QVERIFY(!released.isEmpty());
+    QVERIFY(released.last().at(0).toStringList().contains(kB));
 }
 
 QTEST_GUILESS_MAIN(TestScrollEngineFullscreenFloat)

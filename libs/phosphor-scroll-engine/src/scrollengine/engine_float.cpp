@@ -31,11 +31,15 @@ namespace PhosphorScrollEngine {
 
 bool ScrollEngine::floatWindowInternal(ScrollState* state, const PhosphorEngine::PlacementStateKey& key,
                                        const QString& windowId, const QString& screenId, FloatAnnounce announce,
-                                       bool fullscreenHold, bool applyAfter)
+                                       bool applyAfter)
 {
     if (state->isFloating(windowId)) {
         return false;
     }
+    // A float of a held tile (a user float, a rule, the oversized verdict)
+    // ends the hold: the window has left its column, and the compositor's
+    // later return finds no hold of the engine's to end.
+    m_fullscreenHolds.remove(windowId);
     const ScrollLayoutParams params = layoutParamsForKey(key);
     const int columnIdx = state->strip().columnOfWindow(windowId);
     if (columnIdx < 0) {
@@ -52,9 +56,6 @@ bool ScrollEngine::floatWindowInternal(ScrollState* state, const PhosphorEngine:
         state->addFloating(windowId);
         if (!m_floatRestore.contains(windowId)) {
             m_floatRestore.insert(windowId, FloatRestore{});
-        }
-        if (fullscreenHold) {
-            m_floatRestore[windowId].fullscreenHold = true;
         }
         m_scrollFloatedWindows.insert(windowId);
         // Drop the per-window memories, the rect included (the main path keeps
@@ -144,11 +145,6 @@ bool ScrollEngine::floatWindowInternal(ScrollState* state, const PhosphorEngine:
         state->setLastFloatingFocus(windowId);
         state->setFloatingHasFocus(true);
     }
-    // The hold is on the slot BEFORE the announce: the daemon's close-capture
-    // probe (isFullscreenFloated) runs synchronously inside it, and a hold
-    // applied afterwards let that capture store the output rect as free
-    // geometry.
-    restore.fullscreenHold = fullscreenHold;
     m_floatRestore.insert(windowId, restore);
     m_scrollFloatedWindows.insert(windowId);
     // m_lastAppliedRect is KEPT: it is the column rect the float-back refusal
@@ -491,8 +487,8 @@ void ScrollEngine::setWindowFloatAnnounced(const QString& rawWindowId, bool shou
 
 bool ScrollEngine::setWindowFullscreenFloat(const QString& rawWindowId, bool floating, const QString& screenId)
 {
-    // The wire carries a screen hint, but both directions act on and announce
-    // the window's own tracked screen (key.screenId), so the hint is unused.
+    // The wire carries a screen hint, but both directions act on the window's
+    // own tracked screen (key.screenId), so the hint is unused.
     Q_UNUSED(screenId)
     const QString windowId = canonicalizeForLookup(rawWindowId);
     PhosphorEngine::PlacementStateKey key;
@@ -501,39 +497,46 @@ bool ScrollEngine::setWindowFullscreenFloat(const QString& rawWindowId, bool flo
         return false;
     }
     if (floating) {
-        // A window that already floats under ANOTHER owner (a user float, a
-        // rule float, a minimize-float) keeps that owner: refusing means the
-        // exit never unfloats something the compositor did not float. A repeat
-        // hold of THIS call's own float answers true and changes nothing, so an
-        // effect re-entering after a lost return does not read "refused" as
-        // "not ours" and drop its record while the engine keeps the hold. The
-        // hold rides the slot, so every other unfloat route (a user Meta+F
-        // during the hold, a handoff, a close) consumes it with the slot and
-        // the compositor's later return finds nothing of ours to undo.
-        if (state->isFloating(windowId)) {
-            return m_floatRestore.value(windowId).fullscreenHold;
+        // The tile stays in its column for the hold (#1266). Taking it out
+        // made the neighbours close up behind the fullscreen surface: the next
+        // column slid into the slot the window left, and slid back on the
+        // exit. The column keeps its extent, so nothing else moves and the
+        // view stays where it is. The compositor ignores rects for a
+        // fullscreen window, so the column is laid out as before and the
+        // window is not configured during the hold.
+        //
+        // A window that is not in the strip (one that floats under another
+        // owner: a user float, a rule float, a minimize-float) keeps that
+        // owner: the refusal means the exit ends nothing the compositor did
+        // not take. A repeat hold answers true and changes nothing, so an
+        // effect re-entering after a lost reply does not read "refused" as
+        // "not ours".
+        if (state->isFloating(windowId) || state->strip().columnOfWindow(windowId) < 0) {
+            return false;
         }
-        // QString(): the announce then resolves key.screenId, the same screen
-        // the return announces on, so the hint never mislabels the passive emit.
-        return floatWindowInternal(state, key, windowId, QString(), FloatAnnounce::Passive,
-                                   /*fullscreenHold=*/true);
+        m_fullscreenHolds.insert(windowId);
+        return true;
     }
-    if (!m_floatRestore.value(windowId).fullscreenHold) {
+    if (!m_fullscreenHolds.remove(windowId)) {
         return false;
     }
-    // Seated without the relayout, so the verdict below runs on the model
-    // before any batch goes out.
-    if (!unfloatWindowInternal(state, windowId, key.screenId, /*applyAfter=*/false, FloatAnnounce::Passive)) {
+    // A window that left the strip during the hold (floated, moved or handed
+    // off) has nothing to return to here.
+    if (state->strip().columnOfWindow(windowId) < 0) {
         return false;
     }
+    // KWin restores the window's pre-fullscreen rect on its own, which need
+    // not be its column rect. The rect the engine last sent is the column
+    // rect, so the emit-on-change gate would send nothing: forget it, and the
+    // relayout below sends the column rect again.
+    m_lastAppliedRect.remove(windowId);
     // The return is the compositor's, so it re-runs the oversized verdict the
     // open path and the min-size report apply: a client that pinned a minimum
     // past the work area during the hold, or whose committed floor no longer
     // fits it, would otherwise sit tiled at a size no column can honour, and
-    // the compositor re-reports a minimum only when it changes. A user's own
-    // unfloat stays manual (toggleWindowFloat does not come here). Ahead of
-    // the apply, the open path's order: a window that floats again never has
-    // its column configured first, and its float relayouts the strip itself.
+    // the compositor re-reports a minimum only when it changes. Ahead of the
+    // apply, the open path's order: a window that floats never has its column
+    // configured first, and its float relayouts the strip itself.
     if (!floatIfOutgrowsWorkArea(state, key, windowId, "setWindowFullscreenFloat: return of")) {
         applyReturnedTile(key);
     }
@@ -586,23 +589,21 @@ void ScrollEngine::restoreTabbedHeightOwner(ScrollStrip& strip, const QString& w
     strip.setTabbedHeightOwner(windowId);
 }
 
-void ScrollEngine::announceReleasedFullscreenHolds()
-{
-    // A hold is not placement intent, and the engine adopting these windows
-    // floats from its own slot and rules, never from the shared bit. Announced
-    // passively, outside the state walk that released them, so the daemon's
-    // sync clears the WTS bit before its release handler runs and no window
-    // the next engine tiles is left reading "floating" for the session.
-    const QStringList holds = std::exchange(m_releasedFullscreenHolds, {});
-    for (const QString& windowId : holds) {
-        Q_EMIT windowFloatingStateSynced(windowId, false, QString());
-    }
-}
-
-bool ScrollEngine::isFullscreenFloated(const QString& windowId) const
+bool ScrollEngine::isFullscreenHeld(const QString& windowId) const
 {
     const QString id = canonicalizeForLookup(windowId);
-    return m_floatRestore.value(id).fullscreenHold || m_closedFullscreenHolds.contains(id);
+    return m_fullscreenHolds.contains(id) || m_closedFullscreenHolds.contains(id);
+}
+
+bool ScrollEngine::columnHoldsFullscreenHold(const ScrollStrip& strip, int columnIdx) const
+{
+    if (m_fullscreenHolds.isEmpty() || columnIdx < 0 || columnIdx >= strip.columnCount()) {
+        return false;
+    }
+    const Column& column = strip.columns().at(columnIdx);
+    return std::any_of(column.tiles.cbegin(), column.tiles.cend(), [this](const Tile& tile) {
+        return m_fullscreenHolds.contains(tile.windowId);
+    });
 }
 
 void ScrollEngine::forgetClosedFullscreenHold(const QString& windowId)
@@ -630,56 +631,42 @@ void ScrollEngine::forgetClosedFullscreenHold(const QString& windowId)
     }
 }
 
-void ScrollEngine::rememberReleasedFullscreenHold(const QString& windowId)
-{
-    if (m_floatRestore.value(windowId).fullscreenHold) {
-        m_releasedFullscreenHolds.append(windowId);
-    }
-}
-
 void ScrollEngine::settleReannouncedFullscreenHold(const QString& windowId)
 {
-    // A same-key re-announce of a window held out for its OWN fullscreen: the
-    // compositor left fullscreen with no record of the hold (an effect
-    // restart) and announces instead of returning. Put it back in its slot.
-    // The effect's bring-up alive list exempts a live fullscreen window, so
-    // the prune no longer drops the hold first and this arm is the return
-    // path. A re-announce of a window that is STILL fullscreen is kept out
-    // only by the effect's first-contact reject (frame == FullScreenArea).
-    // Inside an arrival burst the apply is deferred with the burst's other
-    // keys rather than run synchronously per arrival.
+    // A same-key re-announce of a held window: the compositor left fullscreen
+    // with no record of the hold (an effect restart) and announces instead of
+    // returning, or announces a window that is still fullscreen, which the
+    // compositor ignores rects for. The tile never left its column, so the
+    // hold ends here as at setWindowFullscreenFloat's return: the column rect
+    // goes out again and the oversized verdict runs before the strip is laid
+    // out. Inside an arrival burst the apply is deferred with the burst's
+    // other keys rather than run synchronously per arrival.
+    if (!m_fullscreenHolds.remove(windowId)) {
+        return;
+    }
     PhosphorEngine::PlacementStateKey key;
     ScrollState* state = stateForWindow(windowId, &key);
-    if (!state || !m_floatRestore.value(windowId).fullscreenHold) {
+    if (!state || !state->strip().containsWindow(windowId)) {
         return;
     }
-    qCInfo(lcScrollEngine) << "windowOpened: re-announce of fullscreen-floated" << windowId
-                           << "— returning it to the strip";
+    qCInfo(lcScrollEngine) << "windowOpened: re-announce of fullscreen-held" << windowId << "- the hold ends";
+    m_lastAppliedRect.remove(windowId);
     if (m_arrivalBurstDepth > 0) {
-        if (unfloatWindowInternal(state, windowId, key.screenId, /*applyAfter=*/false, FloatAnnounce::Passive)) {
-            // setWindowFullscreenFloat's return verdict, for its reason: this
-            // is the compositor's return too. Run without its own relayout, so
-            // a window that floats again leaves the strip inside the burst and
-            // the deferred apply below lays out the strip once, without it.
-            floatIfOutgrowsWorkArea(state, key, windowId, "windowOpened: return of", /*applyAfter=*/false);
-            // The value records "arrival took focus"; a return never does, so
-            // an existing true is left alone.
-            if (!m_burstPendingApplies.contains(key)) {
-                m_burstPendingApplies.insert(key, false);
-            }
-            // The deferred apply emits placementChanged only when the anchor
-            // moved; the strip's structure changed regardless, and this is
-            // the engine's only way to mark DirtyScrollStrips (the tracking
-            // service's scheduleSaveState, DirtyAll, also sets that bit).
-            // windowOpened's burst path emits it unconditionally for the same
-            // reason.
-            Q_EMIT placementChanged(key.screenId);
+        // Judged without its own relayout, so a window that floats leaves the
+        // strip inside the burst and the deferred apply lays the strip out
+        // once, without it.
+        floatIfOutgrowsWorkArea(state, key, windowId, "windowOpened: return of", /*applyAfter=*/false);
+        // The value records "arrival took focus"; a return never does, so an
+        // existing true is left alone.
+        if (!m_burstPendingApplies.contains(key)) {
+            m_burstPendingApplies.insert(key, false);
         }
+        // The deferred apply emits placementChanged only when the anchor
+        // moved, and this is the engine's only way to mark DirtyScrollStrips.
+        Q_EMIT placementChanged(key.screenId);
         return;
     }
-    // setWindowFullscreenFloat's order: seated, judged, and only then applied.
-    if (unfloatWindowInternal(state, windowId, key.screenId, /*applyAfter=*/false, FloatAnnounce::Passive)
-        && !floatIfOutgrowsWorkArea(state, key, windowId, "windowOpened: return of")) {
+    if (!floatIfOutgrowsWorkArea(state, key, windowId, "windowOpened: return of")) {
         applyReturnedTile(key);
     }
 }

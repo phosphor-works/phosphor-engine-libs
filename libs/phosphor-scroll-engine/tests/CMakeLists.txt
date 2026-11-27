@@ -201,7 +201,7 @@ pse_add_test(test_scrollengine_focusreport test_scrollengine_focusreport.cpp)
 pse_add_test(test_scrollengine_maximize test_scrollengine_maximize.cpp)
 # The compositor's fullscreen hold: a strip tile held out for its own
 # fullscreen with a passive announcement, and what returns it.
-pse_add_test(test_scrollengine_fullscreenfloat test_scrollengine_fullscreenfloat.cpp)
+pse_add_test(test_scrollengine_fullscreenfloat test_scrollengine_fullscreenfloat.cpp scrollstubsettings.h)
 # Which float transitions announce active and which passive (F557, F578), the
 # oversized verdict included.
 pse_add_test(test_scrollengine_floatannounce test_scrollengine_floatannounce.cpp scrollstubsettings.h)

@@ -445,17 +445,23 @@ bool WindowTracker::isFirstTilingPlacement(const PhosphorProtocol::WindowOpenedE
 {
     // A genuine open (Tiling.windowOpened) always is. A re-announce
     // (windowsOpenedBatch, windowReannounced: a mode flip, a desktop return, a
-    // daemon restart's bring-up) is one only for a window the placement store
-    // holds no record of, which is the window whose open this daemon never
-    // saw placed: one that opened while the daemon was down or not yet ready.
-    // A window that was placed once has a record, so its re-announce does not
-    // route it again and a window the user moved since stays where it is.
+    // daemon restart's bring-up) is one only for a window that no engine
+    // ever placed (see wasPlacedByAnyEngine): one that opened while the
+    // daemon was down or not yet ready. A window that was placed once has an
+    // engine slot in its record, so its re-announce does not route it again
+    // and a window the user moved since stays where it is.
     // Read BEFORE the open's placement claim, which writes this window's
     // record.
     if (entry.focusEligible) {
         return true;
     }
-    return !m_service->placementStore().peekExact(entry.windowId).has_value();
+    return !wasPlacedByAnyEngine(entry.windowId);
+}
+
+bool WindowTracker::wasPlacedByAnyEngine(const QString& windowId) const
+{
+    const auto own = m_service->placementStore().peekExact(windowId);
+    return own.has_value() && !own->engines.isEmpty();
 }
 
 PhosphorZones::AssignmentEntry::Mode WindowTracker::runningModeFor(const QString& screenId, int desktop,

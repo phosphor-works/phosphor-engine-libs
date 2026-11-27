@@ -60,11 +60,11 @@ void WindowTracker::captureWindowPlacement(const QString& windowId, const QStrin
     }
     // The suspension-float classification outlives the live minimize bit (the
     // unfloat commits after the animation grace), so a capture landing there
-    // still preserves. A scroll tile held out for its OWN fullscreen is the same
+    // still preserves. A scroll tile held for its OWN fullscreen is the same
     // kind of suspension: its live frame is the output rect, never free geometry
-    // (m_cachedScrollEngine: isFullscreenFloated is ScrollEngine-only API).
+    // (m_cachedScrollEngine: isFullscreenHeld is ScrollEngine-only API).
     treatAsMinimized = treatAsMinimized || m_service->isSuspensionFloat(windowId)
-        || (m_cachedScrollEngine && m_cachedScrollEngine->isFullscreenFloated(windowId));
+        || (m_cachedScrollEngine && m_cachedScrollEngine->isFullscreenHeld(windowId));
     if (treatAsMinimized && !fromStateChange) {
         if (authoritativeScreen.isEmpty()) {
             qCDebug(lcDbusWindow) << "Skipping placement capture for minimized window" << windowId;

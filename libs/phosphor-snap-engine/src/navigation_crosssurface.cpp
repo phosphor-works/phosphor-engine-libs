@@ -246,6 +246,8 @@ void SnapEngine::moveUnsnapped(const QString& windowId, const QString& fromScree
     }
     if (desktopMove) {
         Q_EMIT windowDesktopMoveRequested(windowId, toDesktop);
+        // The view goes with the window (#1313), as in tryCrossDesktopMove.
+        Q_EMIT activateWindowRequested(windowId);
     }
     Q_EMIT navigationFeedback(true, QStringLiteral("move"),
                               (desktopMove ? QStringLiteral("desktop:") : QStringLiteral("screen:")) + direction,

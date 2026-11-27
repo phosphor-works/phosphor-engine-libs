@@ -605,7 +605,7 @@ QVector<StashedTile> ScrollEngine::columnTilesWithHiddenMembers(const ScrollStat
             continue;
         }
         const bool minimized = m_windowRegistry && m_windowRegistry->minimizedState(windowId).value_or(false);
-        if (!restore->fullscreenHold && !minimized) {
+        if (!minimized) {
             continue;
         }
         StashedTile entry;

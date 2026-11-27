@@ -392,12 +392,6 @@ ScrollEngine::capturePlacementIn(const QString& windowId, const ScrollState* sta
     if (m_dragInsertPreview && m_dragInsertPreview->windowId == windowId) {
         return std::nullopt;
     }
-    // A window held out for its OWN fullscreen has no placement to capture:
-    // the hold is not intent, and a floating slot recorded here would re-float
-    // the window on reopen with no hold and no compositor to end it.
-    if (m_floatRestore.value(windowId).fullscreenHold) {
-        return std::nullopt;
-    }
     PhosphorEngine::WindowPlacement placement;
     placement.windowId = windowId;
     // Registry answer, not a parse of the canonical id: the canonical is

@@ -78,7 +78,8 @@ struct ScrollEvacueePark;
  * column index so unfloat / unminimize restores the slot. The effect's
  * minimize machinery reports minimize as a float toggle, so slot memory
  * covers minimize for free. The compositor's own-fullscreen hold
- * (setWindowFullscreenFloat) is a third producer, announced passively.
+ * (setWindowFullscreenFloat) is NOT a float: the tile keeps its column, so
+ * the neighbours stay where they are while the window covers its output.
  *
  * @see PhosphorEngine::IPlacementEngine, ScrollStrip, ScrollState
  */
@@ -226,20 +227,25 @@ public:
     /// Windowed fullscreen (niri toggle-windowed-fullscreen) on the active
     /// window: layout-neutral per-tile flag, see Tile::windowedFullscreen.
     void toggleWindowedFullscreen(const QString& screenId);
-    /// Compositor-driven: hold a strip tile out for its OWN fullscreen or return it, with a
-    /// user float's slot memory but a PASSIVE announcement (no OSD, no free-geometry
-    /// restore). True when the engine holds, or has returned, this call's own float: a first
-    /// hold of a strip tile, a repeat hold of a tile this call already holds, or a return of a
-    /// tile this call held. False for an empty or untracked window, a window that floats under
-    /// another owner, and a return of a window this call did not hold. The return puts the window
-    /// back in its slot at its width, held to any committed floor it had (the hold does not end
-    /// one), and re-runs the oversized verdict before the strip is laid out: a window whose minimum
-    /// or committed floor no longer fits the work area floats again, as it would at open, and no
-    /// batch configures its column first.
+    /// Compositor-driven: hold a strip tile for its OWN fullscreen (@p floating true) or end the
+    /// hold. The wire name predates the seated hold. The tile keeps its column, its width and its
+    /// place, so no other column moves while the window covers its output (#1266). The engine
+    /// goes on laying the column out, and the compositor ignores rects for a fullscreen window.
+    /// While the hold stands, an opening window does not join that column (a consume rule, the
+    /// into-active-column position, a same-app or named tab group), and a committed-size report
+    /// for the window is ignored, because its frame is the output rect. True when the engine
+    /// holds, or has ended, this call's own hold: a first hold of a strip tile, a repeat hold,
+    /// or the end of a hold this call took. False for an empty or untracked window, a window
+    /// that is not in a strip (it floats under another owner), and the end of a hold this call
+    /// did not take, or of one whose window left the strip during it. The end of the hold re-runs
+    /// the oversized verdict before the strip is laid out: a window whose minimum or committed
+    /// floor no longer fits the work area floats, as it would at open.
     bool setWindowFullscreenFloat(const QString& windowId, bool floating, const QString& screenId);
-    /// True while the slot carries the compositor's hold, and for a window that CLOSED mid-hold
-    /// until WindowTracking.windowClosed has taken its capture (forgetClosedFullscreenHold).
-    bool isFullscreenFloated(const QString& windowId) const;
+    /// True while the compositor's hold stands, and for a window that CLOSED mid-hold until
+    /// WindowTracking.windowClosed has taken its capture (forgetClosedFullscreenHold). The daemon
+    /// reads it to treat the window's frame, the output rect, as a suspension and never as free
+    /// geometry.
+    bool isFullscreenHeld(const QString& windowId) const;
     /// Drop the closed-mid-hold memory once the daemon's close capture has read it, or a live
     /// release left no capture to read it. The same moment ends the last-applied rect a close
     /// retained (lastManagedRect), when the window no longer holds a place in any strip here, since
@@ -291,7 +297,7 @@ public:
     /// (onWindowResized, for every tile of the column), when the client lowers its declared minimum on that
     /// axis, when a work-area shrink leaves it past the work area, and when the window leaves the engine,
     /// leaves its output, moves to another desktop or drops into a strip as an arrival sized by its client;
-    /// it survives float round trips (a user float, minimize, the fullscreen hold, a cancelled drag), drag
+    /// it survives the fullscreen hold and float round trips (a user float, minimize, a cancelled drag), drag
     /// reorders, Retile, and the evacuee park. A cross floor follows the same rules across the strip (satisfied
     /// in every desktop, a user resize across the strip, a lowered minimum across it, the same leaves and
     /// survivals), and also drops when its stack can no longer hold it and when the tile's offer along the
@@ -1258,9 +1264,8 @@ private:
     /// It deliberately does NOT drop the mode-specific float markers or the last-applied rects:
     /// both are INPUTS to the daemon's windowsReleased handler, which reads isModeSpecificFloated()
     /// (clearing it per window) and lastManagedRect() (the float-back poison guard). A fullscreen
-    /// HOLD is queued for announceReleasedFullscreenHolds, which fires before windowsReleased; the
-    /// daemon's passive-false arm clears the WTS bit but leaves an UNTRACKED window's marker alone,
-    /// so the handler still sees it. The rects of these still-live windows are reclaimed when a path
+    /// hold ends with the window's last context. The hold is not a float, so there is no float bit
+    /// to announce clear. The rects of these still-live windows are reclaimed when a path
     /// re-adopts the window (windowOpened, handoffReceive, an unfloat) or by the aliveness prune once
     /// it dies; the removed-output prune and the displaced release drop them right after the handler.
     /// AutotileEngine has the same. The committed extents (m_committedExtents) do go here: a released
@@ -1269,16 +1274,15 @@ private:
     /// taken only for a window whose primary membership is @p key, so a walk releasing several of a
     /// window's contexts writes one record whatever order it visits them in. The per-window drops above
     /// run only from the window's last live context (dropWindowBookkeeping's rule), so the primary's
-    /// snapshot still reads the unfloat slot (and its fullscreen hold) when a sibling context went first.
+    /// snapshot still reads the unfloat slot when a sibling context went first.
     void releaseScreenState(const PhosphorEngine::PlacementStateKey& key, ScrollState* state,
                             QStringList& releasedWindows);
     /// The per-window drops releaseScreenState makes for a window leaving the engine (the unfloat
-    /// slot, with its fullscreen hold queued for announceReleasedFullscreenHolds, the committed
-    /// extents, the pending self-activations and declined-open marks, the parked-edge and
-    /// windowed-fullscreen apply memories). releaseScreenState runs it only from the window's last
-    /// live context, so a caller that then takes the window out of its surviving contexts
-    /// (setActiveScreens, finishDisplacedRelease) runs it again once they are gone, ahead of the
-    /// hold announcement. Idempotent.
+    /// slot, the fullscreen hold, the committed extents, the pending self-activations and
+    /// declined-open marks, the parked-edge and windowed-fullscreen apply memories).
+    /// releaseScreenState runs it only from the window's last live context, so a caller that then
+    /// takes the window out of its surviving contexts (setActiveScreens, finishDisplacedRelease)
+    /// runs it again once they are gone. Idempotent.
     void forgetReleasedWindowMemories(const QString& windowId);
     /// Record @p windowId's placement from the strip that still holds it, preferring its primary,
     /// for a displaced window about to be dropped from every context. Nothing is recorded when no
@@ -1291,9 +1295,8 @@ private:
     capturePlacementIn(const QString& windowId, const ScrollState* state,
                        const PhosphorEngine::PlacementStateKey& key) const;
     /// Shared per-window side-map sweep for the SILENT prune paths (desktop and activity teardown),
-    /// which emit no windowsReleased. A fullscreen hold found here is queued for
-    /// announceReleasedFullscreenHolds, which the prune runs after its reverse-map sweep; nothing else
-    /// reads the float marker or the last-applied rect. The closed-hold memory is not seeded here, so
+    /// which emit no windowsReleased. A fullscreen hold found here ends. Nothing else reads the float
+    /// marker or the last-applied rect. The closed-hold memory is not seeded here, so
     /// a close while still fullscreen after a silent prune records the output rect. The removed-output
     /// prune releases live windows and emits, so it goes through releaseScreenState instead.
     void dropWindowBookkeeping(const PhosphorEngine::PlacementStateKey& key, const ScrollState* state);
@@ -1378,8 +1381,31 @@ private:
     /// an entry that exists for @p key hands its blueprint cursor and identity to @p state before any tile is
     /// matched, because the claim can fail for an arrival the entry does not name while the spent-ness is owed to
     /// the state regardless. @p params is the caller's already-resolved layout params (the only caller holds them).
+    /// @p outFocused, when given, is set true when the restore focused @p windowId because the stash names it as
+    /// the strip's focused window, with the stashed view around it. The open path must not rewind that focus.
     bool restoreFromStripStash(ScrollState* state, const PhosphorEngine::PlacementStateKey& key,
-                               const QString& windowId, const ScrollLayoutParams& params, int minWidth, int minHeight);
+                               const QString& windowId, const ScrollLayoutParams& params, int minWidth, int minHeight,
+                               bool* outFocused = nullptr);
+    /// The stashed tile restoreFromStripStash claims for @p windowId: its column and tile index, and, for a
+    /// cross-session claim by app id, the stashed id the claim renames (empty for an exact-id match).
+    struct StashTileMatch
+    {
+        int column = -1;
+        int tile = -1;
+        QString claimedCandidate;
+    };
+    /// The tile of @p stashStrip, the stash entry for @p key, that restoreFromStripStash would claim for
+    /// @p windowId: its own tile by exact id, or else, while the entry's fuzzy-claim grace is open, the first
+    /// unclaimed tile of a closed window of the same app. Changes nothing. @p state, when not null, is the state
+    /// the window opens into: a tile of a window already in its strip is not a candidate.
+    std::optional<StashTileMatch> findStashTile(const StashedStrip& stashStrip,
+                                                const PhosphorEngine::PlacementStateKey& key, const ScrollState* state,
+                                                const QString& windowId) const;
+    /// Whether the stash entry for @p key has a tile that restoreFromStripStash would claim for @p windowId (see
+    /// findStashTile). Changes nothing. insertOpenedWindow reads it before the floating-record restore, so a
+    /// floating record of another window of the same app cannot take a window out of its saved strip (#1301).
+    bool stripStashHasTileFor(const ScrollState* state, const PhosphorEngine::PlacementStateKey& key,
+                              const QString& windowId) const;
     /// The tiles of @p state's column @p columnIndex in tile order, with the column's hidden members (see
     /// focusedColumnWindows) inserted at the slot they return to, their leaves replayed newest first. A live
     /// tile carries its height, minimized and windowed-fullscreen state; a hidden member carries only the height
@@ -1506,9 +1532,11 @@ private:
     /// column on another desktop: the float arms and the placement record
     /// are skipped, because both already spoke for this window on the desktop
     /// it came from and a live window must not consume cross-session memory.
+    /// @p outStashFocused, when given, is set true when the stash restore focused the window as the strip's stashed
+    /// focus (restoreFromStripStash's @p outFocused).
     bool insertOpenedWindow(ScrollState* state, const QString& windowId, const QString& screenId, int minWidthIn,
                             int minHeightIn, ScrollOpenParams* outOpenParams = nullptr, bool migration = false,
-                            QString* outDisplacedTab = nullptr, bool adoption = false);
+                            QString* outDisplacedTab = nullptr, bool adoption = false, bool* outStashFocused = nullptr);
     // engine_membership.cpp
     /// Point the container's primary resolution at currentKeyForScreen.
     void installContextResolver();
@@ -1567,22 +1595,22 @@ private:
     void announceFloat(FloatAnnounce announce, const QString& windowId, bool floating, const QString& screenId);
     void setWindowFloatAnnounced(const QString& rawWindowId, bool shouldFloat, const QString& screenId,
                                  FloatAnnounce announce);
-    /// Queue @p windowId for announceReleasedFullscreenHolds when its slot carries the hold.
-    void rememberReleasedFullscreenHold(const QString& windowId);
-    void announceReleasedFullscreenHolds();
-    /// A same-key re-announce of a held window is the compositor's return (its record is gone).
-    /// @p fullscreenHold on floatWindowInternal stamps the hold on the slot BEFORE the announce.
+    /// A same-key re-announce of a held window ends the hold: the compositor lost its record of it.
     /// @p applyAfter false on floatWindowInternal leaves the relayout and placementChanged to a caller that
     /// batches them, the shape of unfloatWindowInternal's parameter of that name. That is the main arm's
     /// tail: the residue heal (a window tracked in neither the strip nor the floating set) moves no column
     /// and emits its own placementChanged whatever @p applyAfter says.
     void settleReannouncedFullscreenHold(const QString& windowId);
-    /// The relayout and placementChanged a fullscreen-hold return seated with applyAfter false owes once
-    /// the oversized verdict kept the window tiled (context-guarded like unfloatWindowInternal's own).
+    /// The relayout and placementChanged the end of a fullscreen hold, or an unfloat seated with applyAfter
+    /// false, owes once the oversized verdict kept the window tiled (context-guarded like
+    /// unfloatWindowInternal's own).
     void applyReturnedTile(const PhosphorEngine::PlacementStateKey& key);
     bool floatWindowInternal(ScrollState* state, const PhosphorEngine::PlacementStateKey& key, const QString& windowId,
                              const QString& screenId, FloatAnnounce announce = FloatAnnounce::Active,
-                             bool fullscreenHold = false, bool applyAfter = true);
+                             bool applyAfter = true);
+    /// Whether column @p columnIdx of @p strip holds a tile under the compositor's own-fullscreen hold, so an
+    /// opening window must not join it.
+    bool columnHoldsFullscreenHold(const ScrollStrip& strip, int columnIdx) const;
     bool unfloatWindowInternal(ScrollState* state, const QString& windowId, const QString& screenId,
                                bool applyAfter = true, FloatAnnounce announce = FloatAnnounce::Active);
     // engine_navigation.cpp
@@ -1913,9 +1941,11 @@ private:
     /// column must not come back as the default width). Value type in
     /// ScrollStashTypes.h beside the stash types.
     QHash<QString, FloatRestore> m_floatRestore;
-    /// Holds found by releaseScreenState and the silent prunes, announced clear before the emit.
-    QStringList m_releasedFullscreenHolds;
-    /// Ids that CLOSED while held: isFullscreenFloated keeps answering true so the daemon's close
+    /// Strip tiles under the compositor's own-fullscreen hold (setWindowFullscreenFloat). The tile stays in
+    /// its column. An id leaves the set when the hold ends, when the window floats, closes or is released, and
+    /// when it is re-announced on its own context.
+    QSet<QString> m_fullscreenHolds;
+    /// Ids that CLOSED while held: isFullscreenHeld keeps answering true so the daemon's close
     /// capture (after Tiling.windowClosed dropped the slot) reads a suspension. Consumed by the WTA.
     QSet<QString> m_closedFullscreenHolds;
     /// Live drag-insert preview state (drag_preview.cpp). The structural

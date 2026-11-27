@@ -385,10 +385,8 @@ void ScrollEngine::releaseMembership(const QString& windowId, const PlacementSta
         }
     }
     if (wasFloatingHere && !stillFloating) {
-        // A fullscreen hold goes with the float here: the ordinary desktop
-        // move takes the effect's own arm (releaseWindowTracking drops its
-        // record), so nothing is stranded; a reconcile-only release (an
-        // activity move) orphans ANY tracked window, which predates the hold.
+        // A reconcile-only release (an activity move) orphans ANY tracked
+        // window here, floating or not.
         m_floatRestore.remove(windowId);
         m_scrollFloatedWindows.remove(windowId);
         Q_EMIT windowFloatingStateSynced(windowId, false, key.screenId);

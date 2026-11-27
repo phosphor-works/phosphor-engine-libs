@@ -76,6 +76,9 @@ int ScrollEngine::pruneStaleWindows(const QSet<QString>& aliveWindowIds)
     m_closedFullscreenHolds.removeIf([&aliveWindowIds](const QString& id) {
         return !aliveWindowIds.contains(id);
     });
+    m_fullscreenHolds.removeIf([&aliveWindowIds](const QString& id) {
+        return !aliveWindowIds.contains(id);
+    });
     // The committed extents have no eviction funnel of their own: every leave
     // path forgets them itself, and this is the belt for a window that died
     // while none of those paths could run.
@@ -412,7 +415,6 @@ void ScrollEngine::finishDisplacedRelease(QStringList& displacedWindows, const Q
         m_states.removeWindowsIf([&displacedSet](const QString& wid, const PhosphorEngine::PlacementStateKey&) {
             return displacedSet.contains(wid);
         });
-        announceReleasedFullscreenHolds();
         Q_EMIT windowsReleased(displacedWindows, displacedScreens);
         // Only NOW may the per-window side maps go — the handler above has
         // consumed the float markers and the last-applied rects (same
@@ -424,11 +426,6 @@ void ScrollEngine::finishDisplacedRelease(QStringList& displacedWindows, const Q
             m_parkedScrollEdge.remove(windowId);
             m_scrollFloatedWindows.remove(windowId);
         }
-    } else {
-        // Drain even when the re-entrant filter emptied the set: an id this
-        // release collected must not carry to an unrelated later one, where
-        // the daemon would clear a re-held window's marker.
-        announceReleasedFullscreenHolds();
     }
 }
 
@@ -523,7 +520,7 @@ void ScrollEngine::dropWindowBookkeeping(const PhosphorEngine::PlacementStateKey
         m_lastAppliedWindowedFs.remove(windowId);
         m_lastAppliedMaximizedToEdges.remove(windowId);
         m_parkedScrollEdge.remove(windowId);
-        rememberReleasedFullscreenHold(windowId); // announced at the end of the silent prune
+        m_fullscreenHolds.remove(windowId);
         m_floatRestore.remove(windowId);
         m_scrollFloatedWindows.remove(windowId);
         // The window has lost its last context here: a window still alive
@@ -620,7 +617,6 @@ void ScrollEngine::pruneStatesForDesktop(int removedDesktop)
     m_states.removeWindowsIf([removedDesktop](const QString&, const PhosphorEngine::PlacementStateKey& key) {
         return key.desktop == removedDesktop;
     });
-    announceReleasedFullscreenHolds(); // a silently pruned hold still clears the daemon's float bit
     m_context.pruneDesktop(removedDesktop);
     sweepStatelessScreenBookkeeping(touchedScreens);
     sweepStripStash([removedDesktop](const PhosphorEngine::PlacementStateKey& key) {
@@ -681,7 +677,6 @@ void ScrollEngine::pruneStatesForActivities(const QStringList& validActivities)
     m_states.removeWindowsIf([&stale](const QString&, const PhosphorEngine::PlacementStateKey& key) {
         return stale(key.activity);
     });
-    announceReleasedFullscreenHolds(); // a silently pruned hold still clears the daemon's float bit
     sweepStatelessScreenBookkeeping(touchedScreens);
     sweepStripStash([&stale](const PhosphorEngine::PlacementStateKey& key) {
         return stale(key.activity);
@@ -858,7 +853,6 @@ void ScrollEngine::pruneStatesForRemovedScreen(const QString& physicalScreenId)
         m_activeScreen.clear();
     }
     if (!releasedWindows.isEmpty()) {
-        announceReleasedFullscreenHolds();
         Q_EMIT windowsReleased(releasedWindows, releasedScreens);
     }
     // Only NOW may the per-window side maps go: the handler above has consumed
@@ -917,8 +911,8 @@ void ScrollEngine::releaseScreenState(const PhosphorEngine::PlacementStateKey& k
     // another mode, and a stale entry would eat the first genuine focus report
     // on the way back. The parked-edge and windowed-fullscreen memories go for
     // eviction symmetry: neither feeds windowsReleased, and nothing can sweep
-    // them later. A fullscreen HOLD is remembered for
-    // announceReleasedFullscreenHolds, since its slot dies here. The committed
+    // them later. A fullscreen hold ends here: the window leaves its column.
+    // The hold is not a float, so the daemon has no float bit to clear. The committed
     // extents go with the window, which is leaving the engine; an evacuee's
     // were copied into the park before this ran (parkOutput).
     //
@@ -927,8 +921,7 @@ void ScrollEngine::releaseScreenState(const PhosphorEngine::PlacementStateKey& k
     // already out of the forward map when the later ones are visited, so a
     // context still in it is one this walk has yet to release or one that
     // survives. Dropping the unfloat slot from the first context visited made
-    // the primary's capture above read no fullscreen hold and record the
-    // held window as an ordinary float, depending on hash order alone.
+    // what the primary's capture above records depend on hash order alone.
     //
     // A window skipped here because a context that SURVIVES the walk still
     // holds it does not stay in the engine either: setActiveScreens and
@@ -989,9 +982,8 @@ void ScrollEngine::releaseScreenState(const PhosphorEngine::PlacementStateKey& k
 
 void ScrollEngine::forgetReleasedWindowMemories(const QString& windowId)
 {
-    // Idempotent: the hold is queued off the unfloat slot, which goes in the
-    // same pass, so a second run for the same window queues nothing.
-    rememberReleasedFullscreenHold(windowId);
+    // Idempotent: a second run for the same window finds nothing left.
+    m_fullscreenHolds.remove(windowId);
     m_floatRestore.remove(windowId);
     forgetCommittedExtents(windowId);
     m_pendingSelfActivations.removeAll(windowId);

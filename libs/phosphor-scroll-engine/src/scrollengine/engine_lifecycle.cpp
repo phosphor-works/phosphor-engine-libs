@@ -19,8 +19,11 @@ namespace PhosphorScrollEngine {
 
 bool ScrollEngine::insertOpenedWindow(ScrollState* state, const QString& windowId, const QString& screenId,
                                       int minWidthIn, int minHeightIn, ScrollOpenParams* outOpenParams, bool migration,
-                                      QString* outDisplacedTab, bool adoption)
+                                      QString* outDisplacedTab, bool adoption, bool* outStashFocused)
 {
+    if (outStashFocused) {
+        *outStashFocused = false;
+    }
     // Public-API belt at the one boundary the update path already guards:
     // windowMinSizeUpdated clamps because "a negative floor flows into
     // Tile::minWidth/minHeight, and the relayout slack math is not written
@@ -124,9 +127,24 @@ bool ScrollEngine::insertOpenedWindow(ScrollState* state, const QString& windowI
     // takeForReopen falls back to the app's FIFO, so a live window adopted
     // onto another desktop could consume a closed sibling's floating record
     // and be teleported to its float-back.
+    //
+    // The saved strip outranks a floating record of ANOTHER window. When the
+    // strip stash for this context holds a tile for this window (its own tile,
+    // or a closed same-app window's tile inside the session-restore grace),
+    // only the window's own floating record still floats it. takeForReopen
+    // falls back to the newest floating record of the app, and any window of
+    // the app that once floated leaves one, so without this gate a window that
+    // the saved strip places at login, or after its output came back, reopened
+    // floating (#1301).
     const QString appId = currentAppIdFor(windowId);
-    if (!adoption && m_windowTracker && PhosphorEngine::hasStableAppIdFor(appId, windowId)) {
-        const PhosphorEngine::PlacementStateKey currentKey = currentKeyForScreen(screenId);
+    const PhosphorEngine::PlacementStateKey currentKey = currentKeyForScreen(screenId);
+    const bool ownFloatOnly = !adoption && m_windowTracker && stripStashHasTileFor(state, currentKey, windowId);
+    const bool ownRecordFloats = ownFloatOnly && [&]() {
+        const auto own = m_windowTracker->placementStore().peekExact(windowId);
+        return own && own->slotFor(engineId()).state == PhosphorEngine::WindowPlacement::stateFloating();
+    }();
+    if (!adoption && m_windowTracker && PhosphorEngine::hasStableAppIdFor(appId, windowId)
+        && (!ownFloatOnly || ownRecordFloats)) {
         if (const auto record =
                 m_windowTracker->placementStore().takeForReopen(engineId(), windowId, appId, currentKey.screenId)) {
             const PhosphorEngine::EngineSlot slot = record->slotFor(engineId());
@@ -243,13 +261,17 @@ bool ScrollEngine::insertOpenedWindow(ScrollState* state, const QString& windowI
     // And a column a move recorded for it on another desktop of this screen
     // is one it did not reach: it is arriving here instead (C41).
     forgetMovedColumnsElsewhere(windowId, currentKeyForScreen(screenId));
-    if (restoreFromStripStash(state, currentKeyForScreen(screenId), windowId, params, minWidth, minHeight)) {
+    if (restoreFromStripStash(state, currentKeyForScreen(screenId), windowId, params, minWidth, minHeight,
+                              outStashFocused)) {
         inserted = true;
         restoredFromStash = true;
         insertArm = "stash";
         consumePendingInitialOrder(screenId, windowId);
     }
-    if (!inserted && openParams.consume && *openParams.consume && !state->strip().isEmpty()) {
+    // A column under the fullscreen hold takes no tile: a window opening beside
+    // a fullscreen game or video takes a column of its own (#1266).
+    const bool activeColumnHeld = columnHoldsFullscreenHold(state->strip(), state->strip().activeColumnIndex());
+    if (!inserted && openParams.consume && *openParams.consume && !state->strip().isEmpty() && !activeColumnHeld) {
         const std::optional<ColumnDisplay> displayOverride =
             openParams.tabbed ? std::optional<ColumnDisplay>(display) : std::nullopt;
         if (state->strip().insertWindowIntoActiveColumn(windowId,
@@ -410,7 +432,7 @@ bool ScrollEngine::insertOpenedWindow(ScrollState* state, const QString& windowI
             }
         }
         const ScrollInsertPosition insertPos = effectiveInsertPosition(screenOverrides);
-        if (insertPos == ScrollInsertPosition::IntoActiveColumn && !state->strip().isEmpty()) {
+        if (insertPos == ScrollInsertPosition::IntoActiveColumn && !state->strip().isEmpty() && !activeColumnHeld) {
             // The same ENGAGED-ONLY optional the openColumnPlacement=consume
             // arm above builds, not a bare nullopt. The two arms are the rule
             // and config spellings of one intent, and this one silently
@@ -722,8 +744,9 @@ void ScrollEngine::windowOpened(const QString& rawWindowId, const QString& scree
     const QString priorParkedEdge = m_parkedScrollEdge.take(windowId);
     ScrollOpenParams openParams;
     QString displacedTab;
+    bool stashFocused = false;
     if (!insertOpenedWindow(state, windowId, screenId, minWidth, minHeight, &openParams, oldState != nullptr,
-                            &displacedTab)) {
+                            &displacedTab, /*adoption=*/false, &stashFocused)) {
         // Every insert refused (the strip already holds the window). On a
         // fresh open nothing moved; on the MIGRATION path above the old
         // context already released the window and announced its own retile,
@@ -806,7 +829,10 @@ void ScrollEngine::windowOpened(const QString& rawWindowId, const QString& scree
     // insert arm silently declined focus.
     qCDebug(lcScrollEngine) << "windowOpened focus:" << windowId << "focusNew=" << focusNew
                             << "arrivalTookFocus=" << arrivalTookFocus << "burstDepth=" << m_arrivalBurstDepth;
-    if (!focusNew && !priorActive.isEmpty() && state->strip().activeWindowId() == windowId
+    // Not when the stash restore focused the arrival as the strip's stashed
+    // focus: that is the focus the strip had, not one the arrival took, and
+    // the restore already put the stashed view around it.
+    if (!focusNew && !stashFocused && !priorActive.isEmpty() && state->strip().activeWindowId() == windowId
         && state->strip().containsWindow(priorActive)) {
         const ScrollLayoutParams params = layoutParamsForScreen(screenId);
         // A grouped join made the arrival its host column's shown tab. When
@@ -1031,7 +1057,7 @@ void ScrollEngine::windowClosed(const QString& rawWindowId)
     // backstop.
     // A close mid-hold keeps answering the hold for the same reason: that capture
     // runs after this drop and must read the frame as a suspension, never free geometry.
-    if (m_floatRestore.value(windowId).fullscreenHold) {
+    if (m_fullscreenHolds.remove(windowId)) {
         m_closedFullscreenHolds.insert(windowId);
     }
     m_floatRestore.remove(windowId);

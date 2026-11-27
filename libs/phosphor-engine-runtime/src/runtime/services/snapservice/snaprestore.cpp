@@ -303,8 +303,21 @@ void SnapService::resolveWindowRestore(const QString& windowId, const QString& s
     // sweep is still the open's first snap pass, the one that claims on the
     // landing screen and applies a RouteToScreen the tiling channel leaves
     // to this path (C60).
-    const bool firstPlacement =
-        isOpen || (reason == PhosphorEngine::RestoreReason::PendingSweep && !m_adaptor->hasSnapOpenPlacement(windowId));
+    //
+    // The daemon-ready sweep is a first placement on the same terms, plus one:
+    // no engine may have placed the window yet. When the daemon comes up after
+    // the windows (an XDG autostart app at login opens before plasmazonesd is
+    // ready), that sweep is the only pass those windows get, and the pending
+    // sweep never runs after it. Without this arm their RouteToDesktop and
+    // RouteToScreen rules never applied (#1315). After a real daemon restart a
+    // window that was placed keeps the engine slot in its record, so it is not
+    // routed again. This is the gate the tiling channel uses
+    // (isFirstTilingPlacement). Read before the claim below, which writes the
+    // record.
+    const bool neverPlacedBySnap = !m_adaptor->hasSnapOpenPlacement(windowId);
+    const bool firstPlacement = isOpen || (reason == PhosphorEngine::RestoreReason::PendingSweep && neverPlacedBySnap)
+        || (reason == PhosphorEngine::RestoreReason::DaemonRestartSweep && neverPlacedBySnap
+            && !m_adaptor->wasPlacedByAnyEngine(windowId));
     if (firstPlacement) {
         m_adaptor->markSnapOpenPlacement(windowId);
     }
@@ -345,10 +358,11 @@ void SnapService::resolveWindowRestore(const QString& windowId, const QString& s
     // follows the routing (the routing reads no placement record): claimed
     // against the spawn screen, a routed window took a sibling's record there.
     //
-    // Open AND PendingSweep, for the reason given above. For a window that
-    // did already claim, the claim is idempotent and this is harmless. The
-    // other drivers are re-entries (Unminimize, DesktopArrival) or run with
-    // stable uuids (DaemonRestartSweep).
+    // Open, PendingSweep and a DaemonRestartSweep of a window no engine placed,
+    // for the reasons given above. For a window that did already claim, the
+    // claim is idempotent and this is harmless. The other drivers are
+    // re-entries (Unminimize, DesktopArrival) or run with stable uuids (a
+    // DaemonRestartSweep of a window that was placed).
     if (firstPlacement) {
         svc->claimPlacementForOpen(windowId, engineScreen,
                                    m_engine->isSnapModeScreen(engineScreen)

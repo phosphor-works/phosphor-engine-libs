@@ -1228,6 +1228,16 @@ public:
     /// yet ready). Read it before the open's placement claim.
     bool isFirstTilingPlacement(const PhosphorProtocol::WindowOpenedEntry& entry) const;
 
+    /// Whether an engine ever placed @p windowId: its own placement record
+    /// carries at least one engine slot. The geometry-only record that every
+    /// open and every daemon bring-up writes under the live uuid does not
+    /// count, because it carries no slot. Both open channels read this to tell
+    /// a re-drive of a window that opened before the daemon was ready (first
+    /// placement) from one of a window that this daemon or an earlier one
+    /// placed (not a first placement). Read it before the open's placement
+    /// claim, which writes the record.
+    bool wasPlacedByAnyEngine(const QString& windowId) const;
+
     /// Canonical key for daemon-local per-window shadow maps, and the canonical
     /// form sibling adaptors must agree on for per-window state. Window ids
     /// reach the daemon in both a raw compositor form and the registry's

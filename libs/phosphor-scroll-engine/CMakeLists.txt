@@ -68,6 +68,10 @@ if(NOT TARGET PhosphorScreens::PhosphorScreens)
     find_package(PhosphorScreens CONFIG REQUIRED)
 endif()
 
+if(NOT COMMAND phosphor_install_targets)
+    # Configured on its own: the install functions come with phosphor-libs.
+    find_package(PhosphorPaths REQUIRED)
+endif()
 add_library(PhosphorScrollEngine SHARED
     include/PhosphorScrollEngine/StripAxis.h
     include/PhosphorScrollEngine/ScrollTypes.h
@@ -179,22 +183,17 @@ set_target_properties(PhosphorScrollEngine PROPERTIES
     VISIBILITY_INLINES_HIDDEN ON
 )
 
-install(TARGETS PhosphorScrollEngine
-    EXPORT PhosphorScrollEngineTargets
-    LIBRARY DESTINATION ${KDE_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${KDE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${KDE_INSTALL_BINDIR}
-)
+phosphor_install_targets(TARGETS PhosphorScrollEngine EXPORT PhosphorScrollEngineTargets)
 
-install(DIRECTORY include/PhosphorScrollEngine
+phosphor_install_devel(DIRECTORY include/PhosphorScrollEngine
     DESTINATION ${KDE_INSTALL_INCLUDEDIR}
 )
 
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/phosphorscrollengine_export.h"
+phosphor_install_devel(FILES "${CMAKE_CURRENT_BINARY_DIR}/phosphorscrollengine_export.h"
     DESTINATION ${KDE_INSTALL_INCLUDEDIR}/PhosphorScrollEngine
 )
 
-install(EXPORT PhosphorScrollEngineTargets
+phosphor_install_devel(EXPORT PhosphorScrollEngineTargets
     FILE PhosphorScrollEngineTargets.cmake
     NAMESPACE PhosphorScrollEngine::
     DESTINATION ${KDE_INSTALL_LIBDIR}/cmake/PhosphorScrollEngine
@@ -211,13 +210,13 @@ write_basic_package_version_file(
     VERSION ${PHOSPHORSCROLLENGINE_VERSION}
     COMPATIBILITY SameMajorVersion
 )
-install(FILES
+phosphor_install_devel(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/PhosphorScrollEngineConfig.cmake"
     "${CMAKE_CURRENT_BINARY_DIR}/PhosphorScrollEngineConfigVersion.cmake"
     DESTINATION ${KDE_INSTALL_LIBDIR}/cmake/PhosphorScrollEngine
 )
 
-if(CMAKE_PROJECT_NAME STREQUAL "PhosphorScrollEngine" OR BUILD_TESTING)
+if(CMAKE_PROJECT_NAME STREQUAL "PhosphorScrollEngine" OR PHOSPHOR_ENGINE_LIBS_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()

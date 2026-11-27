@@ -88,6 +88,10 @@ if(NOT TARGET PhosphorScreens::PhosphorScreens)
     find_package(PhosphorScreens CONFIG REQUIRED)
 endif()
 
+if(NOT COMMAND phosphor_install_targets)
+    # Configured on its own: the install functions come with phosphor-libs.
+    find_package(PhosphorPaths REQUIRED)
+endif()
 add_library(PhosphorPlacement SHARED
     include/PhosphorPlacement/IGeometryResolver.h
     include/PhosphorPlacement/PlacementConfig.h
@@ -167,22 +171,17 @@ set_target_properties(PhosphorPlacement PROPERTIES
     VISIBILITY_INLINES_HIDDEN ON
 )
 
-install(TARGETS PhosphorPlacement
-    EXPORT PhosphorPlacementTargets
-    LIBRARY DESTINATION ${KDE_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${KDE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${KDE_INSTALL_BINDIR}
-)
+phosphor_install_targets(TARGETS PhosphorPlacement EXPORT PhosphorPlacementTargets)
 
-install(DIRECTORY include/PhosphorPlacement
+phosphor_install_devel(DIRECTORY include/PhosphorPlacement
     DESTINATION ${KDE_INSTALL_INCLUDEDIR}
 )
 
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/phosphorplacement_export.h"
+phosphor_install_devel(FILES "${CMAKE_CURRENT_BINARY_DIR}/phosphorplacement_export.h"
     DESTINATION ${KDE_INSTALL_INCLUDEDIR}/PhosphorPlacement
 )
 
-install(EXPORT PhosphorPlacementTargets
+phosphor_install_devel(EXPORT PhosphorPlacementTargets
     FILE PhosphorPlacementTargets.cmake
     NAMESPACE PhosphorPlacement::
     DESTINATION ${KDE_INSTALL_LIBDIR}/cmake/PhosphorPlacement
@@ -199,7 +198,7 @@ write_basic_package_version_file(
     VERSION ${PHOSPHORPLACEMENT_VERSION}
     COMPATIBILITY SameMajorVersion
 )
-install(FILES
+phosphor_install_devel(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/PhosphorPlacementConfig.cmake"
     "${CMAKE_CURRENT_BINARY_DIR}/PhosphorPlacementConfigVersion.cmake"
     DESTINATION ${KDE_INSTALL_LIBDIR}/cmake/PhosphorPlacement

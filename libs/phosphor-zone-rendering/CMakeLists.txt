@@ -71,6 +71,10 @@ set(phosphorzonerendering_SRCS
     src/zoneshadernoderhi.cpp
 )
 
+if(NOT COMMAND phosphor_install_targets)
+    # Configured on its own: the install functions come with phosphor-libs.
+    find_package(PhosphorPaths REQUIRED)
+endif()
 add_library(PhosphorZoneRendering SHARED
     ${phosphorzonerendering_public_HDRS}
     ${phosphorzonerendering_SRCS}
@@ -135,13 +139,8 @@ if(NOT DEFINED KDE_INSTALL_BINDIR)
     set(KDE_INSTALL_BINDIR ${CMAKE_INSTALL_BINDIR})
 endif()
 
-install(TARGETS PhosphorZoneRendering
-    EXPORT PhosphorZoneRenderingTargets
-    LIBRARY DESTINATION ${KDE_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${KDE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${KDE_INSTALL_BINDIR}
-)
-install(EXPORT PhosphorZoneRenderingTargets
+phosphor_install_targets(TARGETS PhosphorZoneRendering EXPORT PhosphorZoneRenderingTargets)
+phosphor_install_devel(EXPORT PhosphorZoneRenderingTargets
     FILE PhosphorZoneRenderingTargets.cmake
     NAMESPACE PhosphorZoneRendering::
     DESTINATION ${KDE_INSTALL_LIBDIR}/cmake/PhosphorZoneRendering
@@ -157,15 +156,15 @@ write_basic_package_version_file(
     VERSION ${PHOSPHORZONERENDERING_VERSION}
     COMPATIBILITY SameMajorVersion
 )
-install(FILES
+phosphor_install_devel(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/PhosphorZoneRenderingConfig.cmake"
     "${CMAKE_CURRENT_BINARY_DIR}/PhosphorZoneRenderingConfigVersion.cmake"
     DESTINATION ${KDE_INSTALL_LIBDIR}/cmake/PhosphorZoneRendering
 )
-install(DIRECTORY include/PhosphorZoneRendering
+phosphor_install_devel(DIRECTORY include/PhosphorZoneRendering
     DESTINATION ${KDE_INSTALL_INCLUDEDIR}
 )
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/phosphorzonerendering_export.h"
+phosphor_install_devel(FILES "${CMAKE_CURRENT_BINARY_DIR}/phosphorzonerendering_export.h"
     DESTINATION ${KDE_INSTALL_INCLUDEDIR}/PhosphorZoneRendering
 )
 
@@ -217,7 +216,7 @@ target_link_libraries(PhosphorZoneRenderingQml
         Qt6::Quick
 )
 
-if(CMAKE_PROJECT_NAME STREQUAL "PhosphorZoneRendering" OR BUILD_TESTING)
+if(CMAKE_PROJECT_NAME STREQUAL "PhosphorZoneRendering" OR PHOSPHOR_ENGINE_LIBS_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()

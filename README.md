@@ -71,6 +71,12 @@ To build the app against a local checkout, configure it with
 The libraries name no data directory of an app. The app gives each directory to the classes and functions that read
 it: the layout, algorithm and scrolling-template subdirectories.
 
+The app embeds this tree's libraries as it embeds phosphor-libs': with `PHOSPHOR_EMBED_APP` set, the install holds only
+what the app runs, in the app's own directories. See "Use from an app" in the [phosphor-libs
+README](https://github.com/phosphor-works/phosphor-libs#use-from-an-app). Every install rule here goes through the
+functions of phosphor-libs' `cmake/PhosphorSuite.cmake`. The data in `data/` (layouts, algorithms, scrolling templates)
+installs to `share/phosphor-works/` either way, where the engine runtime finds it through `XDG_DATA_DIRS`.
+
 ## Contributing
 
 The suite conventions are in the [workspace](https://github.com/phosphor-works/workspace) repository, in

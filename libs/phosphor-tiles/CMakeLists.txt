@@ -137,6 +137,10 @@ set(phosphortiles_SRCS
     src/pluau.qrc
 )
 
+if(NOT COMMAND phosphor_install_targets)
+    # Configured on its own: the install functions come with phosphor-libs.
+    find_package(PhosphorPaths REQUIRED)
+endif()
 add_library(PhosphorTiles SHARED
     ${phosphortiles_public_HDRS}
     ${phosphortiles_SRCS}
@@ -218,18 +222,13 @@ endif()
 # tree's own data directory, which is no app's algorithms subdirectory: the
 # loader globs `*.luau`, so a `.d.luau` sitting next to the algorithms would be
 # picked up by the scan and then skipped with a warning, since `pluau.d` fails
-# the basename check.
-install(FILES src/pluau/pluau.d.luau
-    DESTINATION ${KDE_INSTALL_DATADIR}/phosphor-libs)
+# the basename check. Embedded in an app, it goes in the app's own data
+# directory instead.
+phosphor_install_app_data(src/pluau/pluau.d.luau SUBDIR phosphor-libs)
 
-install(TARGETS PhosphorTiles
-    EXPORT PhosphorTilesTargets
-    LIBRARY DESTINATION ${KDE_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${KDE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${KDE_INSTALL_BINDIR}
-)
+phosphor_install_targets(TARGETS PhosphorTiles EXPORT PhosphorTilesTargets)
 
-install(EXPORT PhosphorTilesTargets
+phosphor_install_devel(EXPORT PhosphorTilesTargets
     FILE PhosphorTilesTargets.cmake
     NAMESPACE PhosphorTiles::
     DESTINATION ${KDE_INSTALL_LIBDIR}/cmake/PhosphorTiles
@@ -246,17 +245,17 @@ write_basic_package_version_file(
     VERSION ${PHOSPHORTILES_VERSION}
     COMPATIBILITY SameMajorVersion
 )
-install(FILES
+phosphor_install_devel(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/PhosphorTilesConfig.cmake"
     "${CMAKE_CURRENT_BINARY_DIR}/PhosphorTilesConfigVersion.cmake"
     DESTINATION ${KDE_INSTALL_LIBDIR}/cmake/PhosphorTiles
 )
 
-install(DIRECTORY include/PhosphorTiles/
+phosphor_install_devel(DIRECTORY include/PhosphorTiles/
     DESTINATION ${KDE_INSTALL_INCLUDEDIR}/PhosphorTiles
     FILES_MATCHING PATTERN "*.h"
 )
 
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/phosphortiles_export.h
+phosphor_install_devel(FILES ${CMAKE_CURRENT_BINARY_DIR}/phosphortiles_export.h
     DESTINATION ${KDE_INSTALL_INCLUDEDIR}/PhosphorTiles
 )

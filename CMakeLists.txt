@@ -88,6 +88,15 @@ if(PHOSPHOR_ENGINE_LIBS_TOP_LEVEL)
     kde_clang_format(${PHOSPHOR_ENGINE_LIBS_CLANG_FORMAT_FILES})
 endif()
 
+# The libraries' tests build only in this repository's own build, or in a
+# library configured on its own. An app or the workspace superbuild that adds
+# the tree never builds them: each repository runs only its own tests.
+if(BUILD_TESTING AND PHOSPHOR_ENGINE_LIBS_TOP_LEVEL)
+    set(PHOSPHOR_ENGINE_LIBS_TESTS ON)
+else()
+    set(PHOSPHOR_ENGINE_LIBS_TESTS OFF)
+endif()
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Shared lookups. find_package is idempotent, so these also run as a subproject.
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -143,8 +152,8 @@ endforeach()
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/PhosphorEngineLibsDependencies.cmake")
 phosphor_engine_libs_add_phosphor_libs()
 
-# The shared test helpers (PhosphorTestIsolation, PhosphorLibTesting,
-# PhosphorTestPch) live in phosphor-libs, reachable by name from here on.
+# The shared test helpers (PhosphorTestIsolation, PhosphorTestPch) live in
+# phosphor-libs, reachable by name from here on.
 list(APPEND CMAKE_MODULE_PATH "${PHOSPHOR_LIBS_CMAKE_DIR}")
 
 # ═══════════════════════════════════════════════════════════════════════════════

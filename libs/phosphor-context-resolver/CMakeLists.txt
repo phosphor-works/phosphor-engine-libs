@@ -81,6 +81,10 @@ set(phosphorcontextresolver_SRCS
     src/contextresolver.cpp
 )
 
+if(NOT COMMAND phosphor_install_targets)
+    # Configured on its own: the install functions come with phosphor-libs.
+    find_package(PhosphorPaths REQUIRED)
+endif()
 add_library(PhosphorContextResolver SHARED
     ${phosphorcontextresolver_public_HDRS}
     ${phosphorcontextresolver_SRCS}
@@ -128,7 +132,7 @@ set_target_properties(PhosphorContextResolver PROPERTIES
 # Tests
 # ═══════════════════════════════════════════════════════════════════════════════
 
-if(CMAKE_PROJECT_NAME STREQUAL "PhosphorContextResolver" OR BUILD_TESTING)
+if(CMAKE_PROJECT_NAME STREQUAL "PhosphorContextResolver" OR PHOSPHOR_ENGINE_LIBS_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()
@@ -146,14 +150,9 @@ if(NOT DEFINED KDE_INSTALL_BINDIR)
     set(KDE_INSTALL_BINDIR ${CMAKE_INSTALL_BINDIR})
 endif()
 
-install(TARGETS PhosphorContextResolver
-    EXPORT PhosphorContextResolverTargets
-    LIBRARY DESTINATION ${KDE_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${KDE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${KDE_INSTALL_BINDIR}
-)
+phosphor_install_targets(TARGETS PhosphorContextResolver EXPORT PhosphorContextResolverTargets)
 
-install(EXPORT PhosphorContextResolverTargets
+phosphor_install_devel(EXPORT PhosphorContextResolverTargets
     FILE PhosphorContextResolverTargets.cmake
     NAMESPACE PhosphorContextResolver::
     DESTINATION ${KDE_INSTALL_LIBDIR}/cmake/PhosphorContextResolver
@@ -170,17 +169,17 @@ write_basic_package_version_file(
     VERSION ${PHOSPHORCONTEXTRESOLVER_VERSION}
     COMPATIBILITY SameMajorVersion
 )
-install(FILES
+phosphor_install_devel(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/PhosphorContextResolverConfig.cmake"
     "${CMAKE_CURRENT_BINARY_DIR}/PhosphorContextResolverConfigVersion.cmake"
     DESTINATION ${KDE_INSTALL_LIBDIR}/cmake/PhosphorContextResolver
 )
 
-install(DIRECTORY include/PhosphorContext/
+phosphor_install_devel(DIRECTORY include/PhosphorContext/
     DESTINATION ${KDE_INSTALL_INCLUDEDIR}/PhosphorContext
     FILES_MATCHING PATTERN "*.h"
 )
 
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/phosphorcontextresolver_export.h
+phosphor_install_devel(FILES ${CMAKE_CURRENT_BINARY_DIR}/phosphorcontextresolver_export.h
     DESTINATION ${KDE_INSTALL_INCLUDEDIR}/PhosphorContext
 )

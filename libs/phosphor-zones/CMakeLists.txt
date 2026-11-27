@@ -157,6 +157,10 @@ set(phosphorzones_SRCS
     src/layoutcomputeservice.cpp
 )
 
+if(NOT COMMAND phosphor_install_targets)
+    # Configured on its own: the install functions come with phosphor-libs.
+    find_package(PhosphorPaths REQUIRED)
+endif()
 add_library(PhosphorZones SHARED
     ${phosphorzones_public_HDRS}
     ${phosphorzones_SRCS}
@@ -265,19 +269,14 @@ endif()
 
 # The library's own tests. Most of its behaviour is tested in PlasmaZones'
 # suite, which drives it through the daemon's composition.
-if(CMAKE_PROJECT_NAME STREQUAL "PhosphorZones" OR BUILD_TESTING)
+if(CMAKE_PROJECT_NAME STREQUAL "PhosphorZones" OR PHOSPHOR_ENGINE_LIBS_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()
 
-install(TARGETS PhosphorZones
-    EXPORT PhosphorZonesTargets
-    LIBRARY DESTINATION ${KDE_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${KDE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${KDE_INSTALL_BINDIR}
-)
+phosphor_install_targets(TARGETS PhosphorZones EXPORT PhosphorZonesTargets)
 
-install(EXPORT PhosphorZonesTargets
+phosphor_install_devel(EXPORT PhosphorZonesTargets
     FILE PhosphorZonesTargets.cmake
     NAMESPACE PhosphorZones::
     DESTINATION ${KDE_INSTALL_LIBDIR}/cmake/PhosphorZones
@@ -294,17 +293,17 @@ write_basic_package_version_file(
     VERSION ${PHOSPHORZONES_VERSION}
     COMPATIBILITY SameMajorVersion
 )
-install(FILES
+phosphor_install_devel(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/PhosphorZonesConfig.cmake"
     "${CMAKE_CURRENT_BINARY_DIR}/PhosphorZonesConfigVersion.cmake"
     DESTINATION ${KDE_INSTALL_LIBDIR}/cmake/PhosphorZones
 )
 
-install(DIRECTORY include/PhosphorZones/
+phosphor_install_devel(DIRECTORY include/PhosphorZones/
     DESTINATION ${KDE_INSTALL_INCLUDEDIR}/PhosphorZones
     FILES_MATCHING PATTERN "*.h"
 )
 
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/phosphorzones_export.h
+phosphor_install_devel(FILES ${CMAKE_CURRENT_BINARY_DIR}/phosphorzones_export.h
     DESTINATION ${KDE_INSTALL_INCLUDEDIR}/PhosphorZones
 )

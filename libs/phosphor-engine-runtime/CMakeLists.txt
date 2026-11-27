@@ -458,6 +458,10 @@ set(phosphorengineruntime_overlay_QML
     qml/overlay/ZoneSelectorStripCard.qml
 )
 
+if(NOT COMMAND phosphor_install_targets)
+    # Configured on its own: the install functions come with phosphor-libs.
+    find_package(PhosphorPaths REQUIRED)
+endif()
 add_library(PhosphorEngineRuntime SHARED
     ${phosphorengineruntime_public_HDRS}
     ${phosphorengineruntime_SRCS}
@@ -584,14 +588,9 @@ if(NOT DEFINED KDE_INSTALL_BINDIR)
     set(KDE_INSTALL_BINDIR ${CMAKE_INSTALL_BINDIR})
 endif()
 
-install(TARGETS PhosphorEngineRuntime
-    EXPORT PhosphorEngineRuntimeTargets
-    LIBRARY DESTINATION ${KDE_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${KDE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${KDE_INSTALL_BINDIR}
-)
+phosphor_install_targets(TARGETS PhosphorEngineRuntime EXPORT PhosphorEngineRuntimeTargets)
 
-install(EXPORT PhosphorEngineRuntimeTargets
+phosphor_install_devel(EXPORT PhosphorEngineRuntimeTargets
     FILE PhosphorEngineRuntimeTargets.cmake
     NAMESPACE PhosphorEngineRuntime::
     DESTINATION ${KDE_INSTALL_LIBDIR}/cmake/PhosphorEngineRuntime
@@ -608,16 +607,16 @@ write_basic_package_version_file(
     VERSION ${PHOSPHORENGINERUNTIME_VERSION}
     COMPATIBILITY SameMajorVersion
 )
-install(FILES
+phosphor_install_devel(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/PhosphorEngineRuntimeConfig.cmake"
     "${CMAKE_CURRENT_BINARY_DIR}/PhosphorEngineRuntimeConfigVersion.cmake"
     DESTINATION ${KDE_INSTALL_LIBDIR}/cmake/PhosphorEngineRuntime
 )
 
-install(DIRECTORY include/PhosphorEngineRuntime
+phosphor_install_devel(DIRECTORY include/PhosphorEngineRuntime
     DESTINATION ${KDE_INSTALL_INCLUDEDIR}
 )
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/phosphorengineruntime_export.h"
+phosphor_install_devel(FILES "${CMAKE_CURRENT_BINARY_DIR}/phosphorengineruntime_export.h"
     DESTINATION ${KDE_INSTALL_INCLUDEDIR}/PhosphorEngineRuntime
 )
 

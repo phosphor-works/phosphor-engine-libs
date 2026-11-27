@@ -10,6 +10,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The
 
 ## [Unreleased]
 
+### Added
+
+- An app can embed the libraries (phosphor-libs' `PHOSPHOR_EMBED_APP`): the install then holds only the shared
+  libraries that the app's programs link, in the app's own directory. With phosphor-tiles, the type definitions for
+  tiling scripts (`pluau.d.luau`) go in `share/phosphor-works/<app>`. Every install rule goes through the functions of
+  phosphor-libs' `cmake/PhosphorSuite.cmake`.
+
 ### Changed
 
 - Builds on phosphor-libs `bf8bf88b`, which installs the licence notices of the Wayland protocols that

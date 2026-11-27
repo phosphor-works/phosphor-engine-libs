@@ -76,6 +76,10 @@ if(NOT TARGET PhosphorProtocol::PhosphorProtocol)
     find_package(PhosphorProtocol CONFIG REQUIRED)
 endif()
 
+if(NOT COMMAND phosphor_install_targets)
+    # Configured on its own: the install functions come with phosphor-libs.
+    find_package(PhosphorPaths REQUIRED)
+endif()
 add_library(PhosphorEngine SHARED
     include/PhosphorEngine/DesktopRemap.h
     include/PhosphorEngine/PlacementEngineBase.h
@@ -161,22 +165,17 @@ set_target_properties(PhosphorEngine PROPERTIES
     VISIBILITY_INLINES_HIDDEN ON
 )
 
-install(TARGETS PhosphorEngine
-    EXPORT PhosphorEngineTargets
-    LIBRARY DESTINATION ${KDE_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${KDE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${KDE_INSTALL_BINDIR}
-)
+phosphor_install_targets(TARGETS PhosphorEngine EXPORT PhosphorEngineTargets)
 
-install(DIRECTORY include/PhosphorEngine
+phosphor_install_devel(DIRECTORY include/PhosphorEngine
     DESTINATION ${KDE_INSTALL_INCLUDEDIR}
 )
 
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/phosphorengine_export.h"
+phosphor_install_devel(FILES "${CMAKE_CURRENT_BINARY_DIR}/phosphorengine_export.h"
     DESTINATION ${KDE_INSTALL_INCLUDEDIR}/PhosphorEngine
 )
 
-install(EXPORT PhosphorEngineTargets
+phosphor_install_devel(EXPORT PhosphorEngineTargets
     FILE PhosphorEngineTargets.cmake
     NAMESPACE PhosphorEngine::
     DESTINATION ${KDE_INSTALL_LIBDIR}/cmake/PhosphorEngine
@@ -193,7 +192,7 @@ write_basic_package_version_file(
     VERSION ${PHOSPHORENGINE_VERSION}
     COMPATIBILITY SameMajorVersion
 )
-install(FILES
+phosphor_install_devel(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/PhosphorEngineConfig.cmake"
     "${CMAKE_CURRENT_BINARY_DIR}/PhosphorEngineConfigVersion.cmake"
     DESTINATION ${KDE_INSTALL_LIBDIR}/cmake/PhosphorEngine

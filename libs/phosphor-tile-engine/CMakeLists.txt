@@ -82,6 +82,10 @@ if(NOT TARGET PhosphorScreens::PhosphorScreens)
     find_package(PhosphorScreens CONFIG REQUIRED)
 endif()
 
+if(NOT COMMAND phosphor_install_targets)
+    # Configured on its own: the install functions come with phosphor-libs.
+    find_package(PhosphorPaths REQUIRED)
+endif()
 add_library(PhosphorTileEngine SHARED
     include/PhosphorTileEngine/AutotileEngine.h
     include/PhosphorTileEngine/AutotileEngineTypes.h
@@ -192,22 +196,17 @@ set_target_properties(PhosphorTileEngine PROPERTIES
     VISIBILITY_INLINES_HIDDEN ON
 )
 
-install(TARGETS PhosphorTileEngine
-    EXPORT PhosphorTileEngineTargets
-    LIBRARY DESTINATION ${KDE_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${KDE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${KDE_INSTALL_BINDIR}
-)
+phosphor_install_targets(TARGETS PhosphorTileEngine EXPORT PhosphorTileEngineTargets)
 
-install(DIRECTORY include/PhosphorTileEngine
+phosphor_install_devel(DIRECTORY include/PhosphorTileEngine
     DESTINATION ${KDE_INSTALL_INCLUDEDIR}
 )
 
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/phosphortileengine_export.h"
+phosphor_install_devel(FILES "${CMAKE_CURRENT_BINARY_DIR}/phosphortileengine_export.h"
     DESTINATION ${KDE_INSTALL_INCLUDEDIR}/PhosphorTileEngine
 )
 
-install(EXPORT PhosphorTileEngineTargets
+phosphor_install_devel(EXPORT PhosphorTileEngineTargets
     FILE PhosphorTileEngineTargets.cmake
     NAMESPACE PhosphorTileEngine::
     DESTINATION ${KDE_INSTALL_LIBDIR}/cmake/PhosphorTileEngine
@@ -224,7 +223,7 @@ write_basic_package_version_file(
     VERSION ${PHOSPHORTILEENGINE_VERSION}
     COMPATIBILITY SameMajorVersion
 )
-install(FILES
+phosphor_install_devel(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/PhosphorTileEngineConfig.cmake"
     "${CMAKE_CURRENT_BINARY_DIR}/PhosphorTileEngineConfigVersion.cmake"
     DESTINATION ${KDE_INSTALL_LIBDIR}/cmake/PhosphorTileEngine

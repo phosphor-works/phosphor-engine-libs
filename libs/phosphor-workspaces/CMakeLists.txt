@@ -66,6 +66,10 @@ if(NOT TARGET PhosphorIdentity::PhosphorIdentity)
     find_package(PhosphorIdentity CONFIG REQUIRED)
 endif()
 
+if(NOT COMMAND phosphor_install_targets)
+    # Configured on its own: the install functions come with phosphor-libs.
+    find_package(PhosphorPaths REQUIRED)
+endif()
 add_library(PhosphorWorkspaces SHARED
     include/PhosphorWorkspaces/IVirtualDesktopBackend.h
     include/PhosphorWorkspaces/IActivityBackend.h
@@ -213,26 +217,21 @@ set_target_properties(PhosphorWorkspacesPlasma PROPERTIES
     EXPORT_NAME Plasma
 )
 
-install(TARGETS PhosphorWorkspaces PhosphorWorkspacesPlasma
-    EXPORT PhosphorWorkspacesTargets
-    LIBRARY DESTINATION ${KDE_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${KDE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${KDE_INSTALL_BINDIR}
-)
+phosphor_install_targets(TARGETS PhosphorWorkspaces PhosphorWorkspacesPlasma EXPORT PhosphorWorkspacesTargets)
 
-install(DIRECTORY include/PhosphorWorkspaces
+phosphor_install_devel(DIRECTORY include/PhosphorWorkspaces
     DESTINATION ${KDE_INSTALL_INCLUDEDIR}
 )
 
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/phosphorworkspaces_export.h"
+phosphor_install_devel(FILES "${CMAKE_CURRENT_BINARY_DIR}/phosphorworkspaces_export.h"
     DESTINATION ${KDE_INSTALL_INCLUDEDIR}/PhosphorWorkspaces
 )
 
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/PhosphorWorkspaces/Plasma/phosphorworkspacesplasma_export.h"
+phosphor_install_devel(FILES "${CMAKE_CURRENT_BINARY_DIR}/PhosphorWorkspaces/Plasma/phosphorworkspacesplasma_export.h"
     DESTINATION ${KDE_INSTALL_INCLUDEDIR}/PhosphorWorkspaces/Plasma
 )
 
-install(EXPORT PhosphorWorkspacesTargets
+phosphor_install_devel(EXPORT PhosphorWorkspacesTargets
     FILE PhosphorWorkspacesTargets.cmake
     NAMESPACE PhosphorWorkspaces::
     DESTINATION ${KDE_INSTALL_LIBDIR}/cmake/PhosphorWorkspaces
@@ -249,7 +248,7 @@ write_basic_package_version_file(
     VERSION ${PHOSPHORWORKSPACES_VERSION}
     COMPATIBILITY SameMajorVersion
 )
-install(FILES
+phosphor_install_devel(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/PhosphorWorkspacesConfig.cmake"
     "${CMAKE_CURRENT_BINARY_DIR}/PhosphorWorkspacesConfigVersion.cmake"
     DESTINATION ${KDE_INSTALL_LIBDIR}/cmake/PhosphorWorkspaces

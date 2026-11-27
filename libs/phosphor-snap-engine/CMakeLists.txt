@@ -74,6 +74,10 @@ if(NOT TARGET PhosphorScreens::PhosphorScreens)
     find_package(PhosphorScreens CONFIG REQUIRED)
 endif()
 
+if(NOT COMMAND phosphor_install_targets)
+    # Configured on its own: the install functions come with phosphor-libs.
+    find_package(PhosphorPaths REQUIRED)
+endif()
 add_library(PhosphorSnapEngine SHARED
     include/PhosphorSnapEngine/SnapEngine.h
     include/PhosphorSnapEngine/PlacementDirective.h
@@ -171,22 +175,17 @@ set_target_properties(PhosphorSnapEngine PROPERTIES
     VISIBILITY_INLINES_HIDDEN ON
 )
 
-install(TARGETS PhosphorSnapEngine
-    EXPORT PhosphorSnapEngineTargets
-    LIBRARY DESTINATION ${KDE_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${KDE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${KDE_INSTALL_BINDIR}
-)
+phosphor_install_targets(TARGETS PhosphorSnapEngine EXPORT PhosphorSnapEngineTargets)
 
-install(DIRECTORY include/PhosphorSnapEngine
+phosphor_install_devel(DIRECTORY include/PhosphorSnapEngine
     DESTINATION ${KDE_INSTALL_INCLUDEDIR}
 )
 
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/phosphorsnapengine_export.h"
+phosphor_install_devel(FILES "${CMAKE_CURRENT_BINARY_DIR}/phosphorsnapengine_export.h"
     DESTINATION ${KDE_INSTALL_INCLUDEDIR}/PhosphorSnapEngine
 )
 
-install(EXPORT PhosphorSnapEngineTargets
+phosphor_install_devel(EXPORT PhosphorSnapEngineTargets
     FILE PhosphorSnapEngineTargets.cmake
     NAMESPACE PhosphorSnapEngine::
     DESTINATION ${KDE_INSTALL_LIBDIR}/cmake/PhosphorSnapEngine
@@ -203,7 +202,7 @@ write_basic_package_version_file(
     VERSION ${PHOSPHORSNAPENGINE_VERSION}
     COMPATIBILITY SameMajorVersion
 )
-install(FILES
+phosphor_install_devel(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/PhosphorSnapEngineConfig.cmake"
     "${CMAKE_CURRENT_BINARY_DIR}/PhosphorSnapEngineConfigVersion.cmake"
     DESTINATION ${KDE_INSTALL_LIBDIR}/cmake/PhosphorSnapEngine

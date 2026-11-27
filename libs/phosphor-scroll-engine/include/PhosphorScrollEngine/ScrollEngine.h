@@ -1380,6 +1380,26 @@ private:
     /// the state regardless. @p params is the caller's already-resolved layout params (the only caller holds them).
     bool restoreFromStripStash(ScrollState* state, const PhosphorEngine::PlacementStateKey& key,
                                const QString& windowId, const ScrollLayoutParams& params, int minWidth, int minHeight);
+    /// The stashed tile restoreFromStripStash claims for @p windowId: its column and tile index, and, for a
+    /// cross-session claim by app id, the stashed id the claim renames (empty for an exact-id match).
+    struct StashTileMatch
+    {
+        int column = -1;
+        int tile = -1;
+        QString claimedCandidate;
+    };
+    /// The tile of @p stashStrip, the stash entry for @p key, that restoreFromStripStash would claim for
+    /// @p windowId: its own tile by exact id, or else, while the entry's fuzzy-claim grace is open, the first
+    /// unclaimed tile of a closed window of the same app. Changes nothing. @p state, when not null, is the state
+    /// the window opens into: a tile of a window already in its strip is not a candidate.
+    std::optional<StashTileMatch> findStashTile(const StashedStrip& stashStrip,
+                                                const PhosphorEngine::PlacementStateKey& key, const ScrollState* state,
+                                                const QString& windowId) const;
+    /// Whether the stash entry for @p key has a tile that restoreFromStripStash would claim for @p windowId (see
+    /// findStashTile). Changes nothing. insertOpenedWindow reads it before the floating-record restore, so a
+    /// floating record of another window of the same app cannot take a window out of its saved strip (#1301).
+    bool stripStashHasTileFor(const ScrollState* state, const PhosphorEngine::PlacementStateKey& key,
+                              const QString& windowId) const;
     /// The tiles of @p state's column @p columnIndex in tile order, with the column's hidden members (see
     /// focusedColumnWindows) inserted at the slot they return to, their leaves replayed newest first. A live
     /// tile carries its height, minimized and windowed-fullscreen state; a hidden member carries only the height

@@ -612,66 +612,14 @@ void ScrollEngine::stashStripStructure(const PhosphorEngine::PlacementStateKey& 
     m_stripStashConsumed.remove(key);
 }
 
-bool ScrollEngine::restoreFromStripStash(ScrollState* state, const PhosphorEngine::PlacementStateKey& key,
-                                         const QString& windowId, const ScrollLayoutParams& params, int minWidth,
-                                         int minHeight)
+std::optional<ScrollEngine::StashTileMatch> ScrollEngine::findStashTile(const StashedStrip& stashStrip,
+                                                                        const PhosphorEngine::PlacementStateKey& key,
+                                                                        const ScrollState* state,
+                                                                        const QString& windowId) const
 {
-    const auto it = m_stripStash.find(key);
-    if (it == m_stripStash.end()) {
-        return false;
-    }
-    // A consumed id must not re-enter (same reasoning as the order seed's
-    // consumed guard: a later unrelated open reusing the id would be
-    // re-positioned by the stale entry).
-    if (const auto consumedIt = m_stripStashConsumed.constFind(key);
-        consumedIt != m_stripStashConsumed.cend() && consumedIt->contains(windowId)) {
-        return false;
-    }
-    StashedStrip& stashStrip = it.value();
-    // Spent-ness comes back BEFORE the tile claim below, not after it. Raised
-    // rather than assigned, for the same reason readers floor the cursor at
-    // the column count: this runs once per ARRIVAL, and a window that opened
-    // fresh alongside the restore has already advanced the cursor past what
-    // the stash recorded. Ahead of the claim because the claim can fail — an
-    // arrival this entry does not name, or an entry with no tiles at all —
-    // and the cursor is owed to the state either way.
-    state->setBlueprintCursor(qMax(state->blueprintCursor(), stashStrip.blueprintCursor));
-    // The blueprint the cursor counts against, handed over only when the stash
-    // actually carries one AND the state has none of its own.
-    //
-    // Both halves matter. A state that has already stamped an identity has
-    // consumed an entry or been restored earlier, and that value is the newer
-    // account. And a stash identity that is NULL must not be stamped at all:
-    // null is what an entry staged from the persisted blob holds (the identity
-    // is deliberately not serialized), and establishing it would make the
-    // consumption site compare null against the live blueprint, read a swap,
-    // and reset the very cursor this restore just carried — the original
-    // defect, moved to the restart path. Leaving it unestablished sends that
-    // site down its stamp-and-keep arm, which is the right answer for a
-    // persisted cursor and identical to what stamping would give for a context
-    // that genuinely has no template (its live blueprint is null too).
-    if (stashStrip.blueprintIdentity.isValid() && !state->hasBlueprintIdentity()) {
-        state->setBlueprintIdentity(stashStrip.blueprintIdentity);
-    }
-    if (stashStrip.isEmpty()) {
-        // Cursor-only entry (see stashStripStructure): no columns, so there is
-        // nothing to claim and no tile whose consumption could ever retire it.
-        // The cursor above was its entire payload and has now been handed
-        // over, so the entry retires HERE and nowhere else: pruneStaleWindows'
-        // zero-tile reap deliberately exempts a cursor-only carrier (it must
-        // outlive the bring-up to reach this arrival), so without this erase
-        // the entry would stand for the process lifetime, re-raising a cursor
-        // the state already holds at a hash lookup per arrival.
-        m_stripStash.erase(it);
-        m_stripStashConsumed.remove(key);
-        return false;
-    }
-    QVector<StashedColumn>& stash = stashStrip.columns;
+    const QVector<StashedColumn>& stash = stashStrip.columns;
     int colIdx = -1;
     int tileIdx = -1;
-    /// Set when the tile at (colIdx, tileIdx) was matched by the cross-session
-    /// appId fallback rather than an exact id: holds the stashed id awaiting
-    /// the rename, which is committed only after a successful insert.
     QString claimedCandidate;
     for (int i = 0; i < stash.size() && colIdx < 0; ++i) {
         const int j = [&]() {
@@ -749,7 +697,7 @@ bool ScrollEngine::restoreFromStripStash(ScrollState* state, const PhosphorEngin
                     // A candidate the registry still holds is a window open
                     // elsewhere, not a dead sibling: its column is its own (F648).
                     if (!candidate.startsWith(appPrefix) || consumed.contains(candidate)
-                        || state->strip().containsWindow(candidate)
+                        || (state && state->strip().containsWindow(candidate))
                         || (m_windowRegistry
                             && m_windowRegistry->contains(PhosphorIdentity::WindowId::extractInstanceId(candidate)))) {
                         continue;
@@ -770,8 +718,90 @@ bool ScrollEngine::restoreFromStripStash(ScrollState* state, const PhosphorEngin
         }
     }
     if (colIdx < 0) {
+        return std::nullopt;
+    }
+    return StashTileMatch{colIdx, tileIdx, claimedCandidate};
+}
+
+bool ScrollEngine::stripStashHasTileFor(const ScrollState* state, const PhosphorEngine::PlacementStateKey& key,
+                                        const QString& windowId) const
+{
+    const auto it = m_stripStash.constFind(key);
+    if (it == m_stripStash.cend()) {
         return false;
     }
+    if (const auto consumedIt = m_stripStashConsumed.constFind(key);
+        consumedIt != m_stripStashConsumed.cend() && consumedIt->contains(windowId)) {
+        return false;
+    }
+    return findStashTile(it.value(), key, state, windowId).has_value();
+}
+
+bool ScrollEngine::restoreFromStripStash(ScrollState* state, const PhosphorEngine::PlacementStateKey& key,
+                                         const QString& windowId, const ScrollLayoutParams& params, int minWidth,
+                                         int minHeight)
+{
+    const auto it = m_stripStash.find(key);
+    if (it == m_stripStash.end()) {
+        return false;
+    }
+    // A consumed id must not re-enter (same reasoning as the order seed's
+    // consumed guard: a later unrelated open reusing the id would be
+    // re-positioned by the stale entry).
+    if (const auto consumedIt = m_stripStashConsumed.constFind(key);
+        consumedIt != m_stripStashConsumed.cend() && consumedIt->contains(windowId)) {
+        return false;
+    }
+    StashedStrip& stashStrip = it.value();
+    // Spent-ness comes back BEFORE the tile claim below, not after it. Raised
+    // rather than assigned, for the same reason readers floor the cursor at
+    // the column count: this runs once per ARRIVAL, and a window that opened
+    // fresh alongside the restore has already advanced the cursor past what
+    // the stash recorded. Ahead of the claim because the claim can fail — an
+    // arrival this entry does not name, or an entry with no tiles at all —
+    // and the cursor is owed to the state either way.
+    state->setBlueprintCursor(qMax(state->blueprintCursor(), stashStrip.blueprintCursor));
+    // The blueprint the cursor counts against, handed over only when the stash
+    // actually carries one AND the state has none of its own.
+    //
+    // Both halves matter. A state that has already stamped an identity has
+    // consumed an entry or been restored earlier, and that value is the newer
+    // account. And a stash identity that is NULL must not be stamped at all:
+    // null is what an entry staged from the persisted blob holds (the identity
+    // is deliberately not serialized), and establishing it would make the
+    // consumption site compare null against the live blueprint, read a swap,
+    // and reset the very cursor this restore just carried — the original
+    // defect, moved to the restart path. Leaving it unestablished sends that
+    // site down its stamp-and-keep arm, which is the right answer for a
+    // persisted cursor and identical to what stamping would give for a context
+    // that genuinely has no template (its live blueprint is null too).
+    if (stashStrip.blueprintIdentity.isValid() && !state->hasBlueprintIdentity()) {
+        state->setBlueprintIdentity(stashStrip.blueprintIdentity);
+    }
+    if (stashStrip.isEmpty()) {
+        // Cursor-only entry (see stashStripStructure): no columns, so there is
+        // nothing to claim and no tile whose consumption could ever retire it.
+        // The cursor above was its entire payload and has now been handed
+        // over, so the entry retires HERE and nowhere else: pruneStaleWindows'
+        // zero-tile reap deliberately exempts a cursor-only carrier (it must
+        // outlive the bring-up to reach this arrival), so without this erase
+        // the entry would stand for the process lifetime, re-raising a cursor
+        // the state already holds at a hash lookup per arrival.
+        m_stripStash.erase(it);
+        m_stripStashConsumed.remove(key);
+        return false;
+    }
+    QVector<StashedColumn>& stash = stashStrip.columns;
+    const std::optional<StashTileMatch> match = findStashTile(stashStrip, key, state, windowId);
+    if (!match) {
+        return false;
+    }
+    const int colIdx = match->column;
+    const int tileIdx = match->tile;
+    /// Set when the tile at (colIdx, tileIdx) was matched by the cross-session
+    /// appId fallback rather than an exact id: holds the stashed id awaiting
+    /// the rename, which is committed only after a successful insert.
+    const QString claimedCandidate = match->claimedCandidate;
     // Commit a staged cross-session claim only once the tile is really placed.
     const auto commitClaim = [&]() {
         if (claimedCandidate.isEmpty()) {

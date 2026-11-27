@@ -58,6 +58,7 @@ private Q_SLOTS:
     void coTenantClaimDoesNotRenewSiblingLease();
     void serializeKeepsAnUnclaimedStashTileBesideALiveStrip();
     void loginRestorePredicateGatesTheFloatPositionRestore();
+    void savedStripOutranksAnotherWindowsFloatRecord();
     void windowedFullscreenSurvivesSerializeRestore();
     void windowedFullscreenTogglesEmitAndFloatClears();
     void windowedFullscreenHiddenTabStillEmitsFlag();
@@ -804,6 +805,56 @@ void TestScrollEnginePersistence::loginRestorePredicateGatesTheFloatPositionRest
         } else {
             QVERIFY2(geoSpy.isEmpty(), "a refused predicate must not move the window onto its recorded spot");
         }
+    }
+}
+
+void TestScrollEnginePersistence::savedStripOutranksAnotherWindowsFloatRecord()
+{
+    // #1301: at login the saved strip holds a tile for the app, and the store
+    // holds a floating record that an older window of the same app left. The
+    // reopen used to take that record first and float the new window. The
+    // saved strip must win, and only the window's own floating record still
+    // floats it.
+    QObject owner;
+    ScrollEngine* engine1 = makeProviderEngine(&owner, {kS1});
+    engine1->setCurrentDesktopForScreen(kS1, 1);
+    engine1->windowOpened(QStringLiteral("app|u1"), kS1, 0, 0);
+    engine1->windowOpened(QStringLiteral("other|u2"), kS1, 0, 0);
+    const QJsonObject blob = engine1->serializeStripState();
+    QVERIFY(!blob.isEmpty());
+
+    const auto floatingRecord = [](const QString& windowId) {
+        PhosphorEngine::WindowPlacement rec;
+        rec.windowId = windowId;
+        rec.appId = QStringLiteral("app");
+        rec.screenId = kS1;
+        PhosphorEngine::EngineSlot slot;
+        slot.state = PhosphorEngine::WindowPlacement::stateFloating();
+        rec.engines.insert(PhosphorEngine::WindowPlacement::scrollingEngineId(), slot);
+        rec.freeGeometryByScreen.insert(kS1, QRect(140, 90, 640, 480));
+        return rec;
+    };
+
+    {
+        StubWindowTracking tracker;
+        ScrollEngine* engine2 = makeProviderEngine(&owner, {kS1}, {}, {}, &tracker);
+        engine2->setCurrentDesktopForScreen(kS1, 1);
+        tracker.placementStore().record(floatingRecord(QStringLiteral("app|old")));
+        engine2->restoreStripState(blob);
+        engine2->windowOpened(QStringLiteral("app|n1"), kS1, 0, 0);
+        QVERIFY2(!engine2->isWindowFloatingInScroll(QStringLiteral("app|n1")),
+                 "another window's floating record must not take the window out of its saved strip");
+        QCOMPARE(engine2->columnIndexForWindow(kS1, QStringLiteral("app|n1")), 0);
+    }
+    {
+        StubWindowTracking tracker;
+        ScrollEngine* engine2 = makeProviderEngine(&owner, {kS1}, {}, {}, &tracker);
+        engine2->setCurrentDesktopForScreen(kS1, 1);
+        tracker.placementStore().record(floatingRecord(QStringLiteral("app|n1")));
+        engine2->restoreStripState(blob);
+        engine2->windowOpened(QStringLiteral("app|n1"), kS1, 0, 0);
+        QVERIFY2(engine2->isWindowFloatingInScroll(QStringLiteral("app|n1")),
+                 "the window's own floating record still floats it");
     }
 }
 

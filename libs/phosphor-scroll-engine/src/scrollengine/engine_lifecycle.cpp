@@ -124,9 +124,24 @@ bool ScrollEngine::insertOpenedWindow(ScrollState* state, const QString& windowI
     // takeForReopen falls back to the app's FIFO, so a live window adopted
     // onto another desktop could consume a closed sibling's floating record
     // and be teleported to its float-back.
+    //
+    // The saved strip outranks a floating record of ANOTHER window. When the
+    // strip stash for this context holds a tile for this window (its own tile,
+    // or a closed same-app window's tile inside the session-restore grace),
+    // only the window's own floating record still floats it. takeForReopen
+    // falls back to the newest floating record of the app, and any window of
+    // the app that once floated leaves one, so without this gate a window that
+    // the saved strip places at login, or after its output came back, reopened
+    // floating (#1301).
     const QString appId = currentAppIdFor(windowId);
-    if (!adoption && m_windowTracker && PhosphorEngine::hasStableAppIdFor(appId, windowId)) {
-        const PhosphorEngine::PlacementStateKey currentKey = currentKeyForScreen(screenId);
+    const PhosphorEngine::PlacementStateKey currentKey = currentKeyForScreen(screenId);
+    const bool ownFloatOnly = !adoption && m_windowTracker && stripStashHasTileFor(state, currentKey, windowId);
+    const bool ownRecordFloats = ownFloatOnly && [&]() {
+        const auto own = m_windowTracker->placementStore().peekExact(windowId);
+        return own && own->slotFor(engineId()).state == PhosphorEngine::WindowPlacement::stateFloating();
+    }();
+    if (!adoption && m_windowTracker && PhosphorEngine::hasStableAppIdFor(appId, windowId)
+        && (!ownFloatOnly || ownRecordFloats)) {
         if (const auto record =
                 m_windowTracker->placementStore().takeForReopen(engineId(), windowId, appId, currentKey.screenId)) {
             const PhosphorEngine::EngineSlot slot = record->slotFor(engineId());

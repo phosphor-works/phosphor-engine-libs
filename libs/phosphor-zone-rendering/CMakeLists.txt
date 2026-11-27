@@ -216,7 +216,7 @@ target_link_libraries(PhosphorZoneRenderingQml
         Qt6::Quick
 )
 
-if(CMAKE_PROJECT_NAME STREQUAL "PhosphorZoneRendering" OR BUILD_TESTING)
+if(CMAKE_PROJECT_NAME STREQUAL "PhosphorZoneRendering" OR PHOSPHOR_ENGINE_LIBS_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()

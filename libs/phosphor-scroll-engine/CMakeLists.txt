@@ -216,7 +216,7 @@ phosphor_install_devel(FILES
     DESTINATION ${KDE_INSTALL_LIBDIR}/cmake/PhosphorScrollEngine
 )
 
-if(CMAKE_PROJECT_NAME STREQUAL "PhosphorScrollEngine" OR BUILD_TESTING)
+if(CMAKE_PROJECT_NAME STREQUAL "PhosphorScrollEngine" OR PHOSPHOR_ENGINE_LIBS_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()

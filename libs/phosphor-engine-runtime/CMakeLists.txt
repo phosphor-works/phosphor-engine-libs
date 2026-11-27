@@ -624,7 +624,7 @@ phosphor_install_devel(FILES "${CMAKE_CURRENT_BINARY_DIR}/phosphorengineruntime_
 # Tests
 # ═══════════════════════════════════════════════════════════════════════════════
 
-if(CMAKE_PROJECT_NAME STREQUAL "PhosphorEngineRuntime" OR BUILD_TESTING)
+if(CMAKE_PROJECT_NAME STREQUAL "PhosphorEngineRuntime" OR PHOSPHOR_ENGINE_LIBS_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()

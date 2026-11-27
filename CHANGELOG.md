@@ -19,6 +19,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The
 
 ### Changed
 
+- The libraries' tests build only in this repository's own build, or in a library configured on its own. An app or
+  the workspace superbuild that adds the tree with `BUILD_TESTING` on no longer builds them.
 - Builds on phosphor-libs `bf8bf88b`, which installs the licence notices of the Wayland protocols that
   phosphor-wayland compiles in (phosphor-works/PlasmaZones#1193).
 

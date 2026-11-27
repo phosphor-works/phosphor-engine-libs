@@ -114,7 +114,7 @@ were split out of phosphor-libs, with their history, in November 2026.
 - The Qt lookups run at this tree's top scope before phosphor-libs is added, so the IMPORTED private Qt targets are
   visible to the libraries here.
 - The test helpers come from phosphor-libs through `PHOSPHOR_LIBS_CMAKE_DIR`, which is on `CMAKE_MODULE_PATH` here:
-  `PhosphorTestIsolation`, `PhosphorLibTesting` and `PhosphorTestPch`. A test tree that cannot find
+  `PhosphorTestIsolation` and `PhosphorTestPch`. A test tree that cannot find
   `PhosphorTestIsolation.cmake` (a standalone configure of one library) falls back to a stand-in with no isolation.
 
 ## Where things are

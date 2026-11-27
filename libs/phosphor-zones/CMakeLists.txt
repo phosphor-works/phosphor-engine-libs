@@ -269,7 +269,7 @@ endif()
 
 # The library's own tests. Most of its behaviour is tested in PlasmaZones'
 # suite, which drives it through the daemon's composition.
-if(CMAKE_PROJECT_NAME STREQUAL "PhosphorZones" OR BUILD_TESTING)
+if(CMAKE_PROJECT_NAME STREQUAL "PhosphorZones" OR PHOSPHOR_ENGINE_LIBS_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()

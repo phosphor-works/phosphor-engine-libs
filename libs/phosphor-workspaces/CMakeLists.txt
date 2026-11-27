@@ -257,7 +257,7 @@ phosphor_install_devel(FILES
 # The workspace-map, reconciler, ledger and VirtualDesktopManager suites need
 # nothing beyond Qt, so the tree is entered unconditionally. The ActivityManager
 # suite inside it gates itself on the activities library.
-if(CMAKE_PROJECT_NAME STREQUAL "PhosphorWorkspaces" OR BUILD_TESTING)
+if(CMAKE_PROJECT_NAME STREQUAL "PhosphorWorkspaces" OR PHOSPHOR_ENGINE_LIBS_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()

@@ -132,7 +132,7 @@ set_target_properties(PhosphorContextResolver PROPERTIES
 # Tests
 # ═══════════════════════════════════════════════════════════════════════════════
 
-if(CMAKE_PROJECT_NAME STREQUAL "PhosphorContextResolver" OR BUILD_TESTING)
+if(CMAKE_PROJECT_NAME STREQUAL "PhosphorContextResolver" OR PHOSPHOR_ENGINE_LIBS_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()

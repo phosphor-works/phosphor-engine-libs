@@ -160,7 +160,10 @@ bool ScrollEngine::insertGroupedOpen(ScrollState* state, const QString& windowId
     // the tab the host was showing is reported through @p outDisplacedTab so
     // that rewind can put it back on show too.
     const GroupedOpenHost host = groupedOpenHost(state->strip(), windowId, appId, screenId, openParams);
-    if (host.columnIdx < 0) {
+    // A column under the fullscreen hold takes no tab: a game that shares its
+    // launcher's app id opens in a column of its own while the launcher's
+    // column is fullscreen, and the other way round (#1266).
+    if (host.columnIdx < 0 || columnHoldsFullscreenHold(state->strip(), host.columnIdx)) {
         return false;
     }
     const Column& hostCol = state->strip().columns().at(host.columnIdx);

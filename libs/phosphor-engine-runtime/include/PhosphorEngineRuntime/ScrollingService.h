@@ -523,36 +523,36 @@ public Q_SLOTS:
                              int committedHeight);
 
     /**
-     * @brief Hold a strip tile out of the strip for its OWN fullscreen, or
-     *        return it (compositor-driven)
+     * @brief Hold a strip tile for its OWN fullscreen, or end the hold
+     *        (compositor-driven)
      *
      * The KWin effect calls this with @p floating true when a tiled window
      * goes fullscreen by itself (a client F11, a video) and false when it
-     * leaves fullscreen. The engine floats the window with the same slot
-     * memory a user float keeps, so the return lands in the same column and
-     * width, but announces on its PASSIVE channel: no float OSD, no free
-     * geometry restore. A return whose window now outgrows the work area
-     * (declared minimum or learned committed floor) still answers true and is
-     * then floated again on the ordinary channel, the oversized-window
-     * policy. A hold of a window that already floats under another
-     * owner, and a return of a window this call did not hold, both answer
-     * false, so a user float is never taken over or undone. A repeat hold of
-     * this call's own float answers true.
+     * leaves fullscreen. The name predates the current hold, which does not
+     * float the window: the tile keeps its column, width and place, so no
+     * other column moves while the window covers its output, and nothing is
+     * announced (ScrollEngine::setWindowFullscreenFloat). An end of the hold
+     * whose window now outgrows the work area (declared minimum or learned
+     * committed floor) still answers true and the window is then floated on
+     * the ordinary channel, the oversized-window policy. A hold of a window
+     * that is not in the strip (one that floats under another owner), and
+     * the end of a hold this call did not take, both answer false, so a user
+     * float is never taken over or undone. A repeat hold answers true.
      *
      * Same wire-boundary policy as clearWindowedFullscreen: a reconciliation
      * call, so neither ownership- nor context-gated, but compositor-only
      * (AccessDenied for any other bus caller). The engine's own lookup
      * rejects an untracked window.
      *
-     * @param windowId Window to hold out or return; an empty string answers false
-     * @param screenId Ignored (the engine Q_UNUSEDs it); the engine acts on,
-     *        and announces, the window's own tracked screen
-     * @param floating true to hold the window out of the strip, false to return it
-     * @return true when the engine holds, or has returned, this call's own
-     *         float: a first hold of a strip tile, a repeat hold of a tile this
-     *         call already holds, or a return of a tile this call held. False
-     *         for an empty or untracked window, a window that floats under
-     *         another owner, and a return of a window this call did not hold
+     * @param windowId Window to hold, or whose hold ends; an empty string answers false
+     * @param screenId Ignored (the engine Q_UNUSEDs it); the engine acts on
+     *        the window's own tracked screen
+     * @param floating true to hold the window, false to end the hold
+     * @return true when the engine holds, or has ended, this call's own
+     *         hold: a first hold of a strip tile, a repeat hold, or the end of
+     *         a hold this call took. False for an empty or untracked window, a
+     *         window not in the strip, and the end of a hold this call did not
+     *         take
      */
     bool setWindowFullscreenFloat(const QString& windowId, const QString& screenId, bool floating);
 

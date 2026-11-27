@@ -298,7 +298,6 @@ void ScrollEngine::setActiveScreens(const QSet<QString>& screens)
         m_states.removeWindowsIf([&releasedSet](const QString& windowId, const PhosphorEngine::PlacementStateKey&) {
             return releasedSet.contains(windowId);
         });
-        announceReleasedFullscreenHolds();
         Q_EMIT windowsReleased(releasedWindows, releasedScreens);
     }
 

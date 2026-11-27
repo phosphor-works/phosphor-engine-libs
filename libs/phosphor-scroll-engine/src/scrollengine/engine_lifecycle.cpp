@@ -264,7 +264,10 @@ bool ScrollEngine::insertOpenedWindow(ScrollState* state, const QString& windowI
         insertArm = "stash";
         consumePendingInitialOrder(screenId, windowId);
     }
-    if (!inserted && openParams.consume && *openParams.consume && !state->strip().isEmpty()) {
+    // A column under the fullscreen hold takes no tile: a window opening beside
+    // a fullscreen game or video takes a column of its own (#1266).
+    const bool activeColumnHeld = columnHoldsFullscreenHold(state->strip(), state->strip().activeColumnIndex());
+    if (!inserted && openParams.consume && *openParams.consume && !state->strip().isEmpty() && !activeColumnHeld) {
         const std::optional<ColumnDisplay> displayOverride =
             openParams.tabbed ? std::optional<ColumnDisplay>(display) : std::nullopt;
         if (state->strip().insertWindowIntoActiveColumn(windowId,
@@ -425,7 +428,7 @@ bool ScrollEngine::insertOpenedWindow(ScrollState* state, const QString& windowI
             }
         }
         const ScrollInsertPosition insertPos = effectiveInsertPosition(screenOverrides);
-        if (insertPos == ScrollInsertPosition::IntoActiveColumn && !state->strip().isEmpty()) {
+        if (insertPos == ScrollInsertPosition::IntoActiveColumn && !state->strip().isEmpty() && !activeColumnHeld) {
             // The same ENGAGED-ONLY optional the openColumnPlacement=consume
             // arm above builds, not a bare nullopt. The two arms are the rule
             // and config spellings of one intent, and this one silently
@@ -1046,7 +1049,7 @@ void ScrollEngine::windowClosed(const QString& rawWindowId)
     // backstop.
     // A close mid-hold keeps answering the hold for the same reason: that capture
     // runs after this drop and must read the frame as a suspension, never free geometry.
-    if (m_floatRestore.value(windowId).fullscreenHold) {
+    if (m_fullscreenHolds.remove(windowId)) {
         m_closedFullscreenHolds.insert(windowId);
     }
     m_floatRestore.remove(windowId);

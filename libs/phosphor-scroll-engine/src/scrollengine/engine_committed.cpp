@@ -261,8 +261,7 @@ bool ScrollEngine::floatIfOutgrowsWorkArea(ScrollState* state, const PhosphorEng
     // user, so the daemon mirrors the state with no float OSD and no restore
     // to the window's free geometry, which for a window too large for any
     // column is a size its client already refused.
-    return floatWindowInternal(state, key, windowId, key.screenId, FloatAnnounce::Passive, /*fullscreenHold=*/false,
-                               applyAfter);
+    return floatWindowInternal(state, key, windowId, key.screenId, FloatAnnounce::Passive, applyAfter);
 }
 
 bool ScrollEngine::everyOtherColumnOffers(const QString& windowId, const PhosphorEngine::PlacementStateKey& key,
@@ -603,6 +602,11 @@ void ScrollEngine::reportCommittedSize(const QString& rawWindowId, const QSize& 
     // onWindowResized's drag exclusion, for its reason: a frame under an
     // interactive move is motion, not the client's answer to a column.
     if (!m_interactiveDragWindow.isEmpty() && windowId == m_interactiveDragWindow) {
+        return;
+    }
+    // A window under the fullscreen hold answers with the output rect, not
+    // with an answer to its column, which keeps its place in the strip.
+    if (m_fullscreenHolds.contains(windowId)) {
         return;
     }
     // Answered before anything is resolved: an answer no larger than its offer

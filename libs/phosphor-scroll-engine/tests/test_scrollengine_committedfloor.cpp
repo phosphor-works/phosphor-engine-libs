@@ -1836,7 +1836,7 @@ private Q_SLOTS:
         engine->windowOpened(kA, kS1, 0, 0);
         QCoreApplication::processEvents();
         QVERIFY(engine->isWindowFloatingInScroll(kA));
-        QVERIFY(!engine->isFullscreenFloated(kA));
+        QVERIFY(!engine->isFullscreenHeld(kA));
         QVERIFY2(!anyBatchCarries(tiled, kA), "the returning window's column must never be configured");
     }
 
@@ -1861,7 +1861,7 @@ private Q_SLOTS:
         engine->endArrivalBurst();
         QCoreApplication::processEvents();
         QVERIFY(engine->isWindowFloatingInScroll(kA));
-        QVERIFY(!engine->isFullscreenFloated(kA));
+        QVERIFY(!engine->isFullscreenHeld(kA));
         QVERIFY(engine->isWindowTiled(kC));
         QVERIFY(tiled.count() > 0);
         QVERIFY2(!anyBatchCarries(tiled, kA), "the returning window's column must never be configured");

@@ -167,6 +167,14 @@ void ScrollEngine::windowMinSizeUpdated(const QString& rawWindowId, int minWidth
     // overwrite one context's slot with another's and the unfloat would
     // misplace it. The relayout clamps those columns to the work area until
     // the window is floated or the client lowers its minimum.
+    // A window under the fullscreen hold is judged, and its column laid out,
+    // when the hold ends (setWindowFullscreenFloat's return). A fullscreen
+    // client can pin new hints at any time, and a float or a relayout now
+    // would move the other columns while the window covers its output
+    // (#1266). The clamp written above is what the return judges.
+    if (m_fullscreenHolds.contains(windowId)) {
+        return;
+    }
     if (floatIfOutgrowsWorkArea(state, key, windowId, "windowMinSizeUpdated:")) {
         return;
     }

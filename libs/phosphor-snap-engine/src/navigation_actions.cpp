@@ -517,6 +517,13 @@ bool SnapEngine::tryCrossDesktopMove(const QString& windowId, const QString& dir
         // would leave the window double-tracked (snapped here, tiled there) until
         // that release lands. The release is the source-of-truth uncommit.
         Q_EMIT crossModeMoveRequested(windowId, screenId, targetDesktop, direction);
+        // The handoff above is synchronous, so the window is on the target
+        // desktop when this runs. If the target refused it, the window stayed
+        // here and the activation changes nothing.
+        // The view goes with the window, as KWin's own Window to Next Desktop
+        // does: activating a window on another desktop switches KWin to it,
+        // and the window keeps the focus (#1313).
+        Q_EMIT activateWindowRequested(windowId);
         // Same success OSD as the snap-zone branches below — the daemon's
         // cross-mode handler relocates the window; it emits no feedback itself.
         Q_EMIT navigationFeedback(true, QStringLiteral("move"), QStringLiteral("desktop:") + direction, QString(),
@@ -574,6 +581,10 @@ bool SnapEngine::tryCrossDesktopMove(const QString& windowId, const QString& dir
         // pre-snap geometry or releasing it. Re-stamping the store here made
         // the zone it visibly holds read empty (F289).
         Q_EMIT windowDesktopMoveRequested(windowId, targetDesktop);
+        // The view goes with the window, as KWin's own Window to Next Desktop
+        // does: activating a window on another desktop switches KWin to it,
+        // and the window keeps the focus (#1313).
+        Q_EMIT activateWindowRequested(windowId);
         Q_EMIT navigationFeedback(true, QStringLiteral("move"), QStringLiteral("desktop:") + direction, QString(),
                                   QString(), screenId);
         return true;
@@ -630,6 +641,10 @@ bool SnapEngine::tryCrossDesktopMove(const QString& windowId, const QString& dir
         Q_EMIT applyGeometryRequested(windowId, rect.x(), rect.y(), rect.width(), rect.height(), landing.first(),
                                       screenId, false);
     }
+    // The view goes with the window, as KWin's own Window to Next Desktop
+    // does: activating a window on another desktop switches KWin to it,
+    // and the window keeps the focus (#1313).
+    Q_EMIT activateWindowRequested(windowId);
     Q_EMIT navigationFeedback(true, QStringLiteral("move"), QStringLiteral("desktop:") + direction, QString(),
                               QString(), screenId);
     return true;

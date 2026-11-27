@@ -304,6 +304,12 @@ void NavigationController::swapFocusedInDirection(const QString& direction, cons
         // window on a desktop you can't see is meaningless; move owns "send to
         // another desktop". So only a MOVE action crosses the desktop boundary.
         if (action != QLatin1String("swap") && crossDesktopMove(screenId, focused, direction)) {
+            // The view goes with the window, as KWin's own Window to Next
+            // Desktop does: activating a window on another desktop switches
+            // KWin to it, and the window keeps the focus (#1313). A
+            // cross-mode handoff is synchronous, so the window has moved
+            // when this runs.
+            Q_EMIT m_engine->activateWindowRequested(focused);
             Q_EMIT m_engine->navigationFeedback(true, action, QStringLiteral("desktop:") + direction, QString(),
                                                 QString(), screenId);
             return;

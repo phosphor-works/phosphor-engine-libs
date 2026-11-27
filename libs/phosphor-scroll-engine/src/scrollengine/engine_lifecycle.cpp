@@ -19,8 +19,11 @@ namespace PhosphorScrollEngine {
 
 bool ScrollEngine::insertOpenedWindow(ScrollState* state, const QString& windowId, const QString& screenId,
                                       int minWidthIn, int minHeightIn, ScrollOpenParams* outOpenParams, bool migration,
-                                      QString* outDisplacedTab, bool adoption)
+                                      QString* outDisplacedTab, bool adoption, bool* outStashFocused)
 {
+    if (outStashFocused) {
+        *outStashFocused = false;
+    }
     // Public-API belt at the one boundary the update path already guards:
     // windowMinSizeUpdated clamps because "a negative floor flows into
     // Tile::minWidth/minHeight, and the relayout slack math is not written
@@ -258,7 +261,8 @@ bool ScrollEngine::insertOpenedWindow(ScrollState* state, const QString& windowI
     // And a column a move recorded for it on another desktop of this screen
     // is one it did not reach: it is arriving here instead (C41).
     forgetMovedColumnsElsewhere(windowId, currentKeyForScreen(screenId));
-    if (restoreFromStripStash(state, currentKeyForScreen(screenId), windowId, params, minWidth, minHeight)) {
+    if (restoreFromStripStash(state, currentKeyForScreen(screenId), windowId, params, minWidth, minHeight,
+                              outStashFocused)) {
         inserted = true;
         restoredFromStash = true;
         insertArm = "stash";
@@ -740,8 +744,9 @@ void ScrollEngine::windowOpened(const QString& rawWindowId, const QString& scree
     const QString priorParkedEdge = m_parkedScrollEdge.take(windowId);
     ScrollOpenParams openParams;
     QString displacedTab;
+    bool stashFocused = false;
     if (!insertOpenedWindow(state, windowId, screenId, minWidth, minHeight, &openParams, oldState != nullptr,
-                            &displacedTab)) {
+                            &displacedTab, /*adoption=*/false, &stashFocused)) {
         // Every insert refused (the strip already holds the window). On a
         // fresh open nothing moved; on the MIGRATION path above the old
         // context already released the window and announced its own retile,
@@ -824,7 +829,10 @@ void ScrollEngine::windowOpened(const QString& rawWindowId, const QString& scree
     // insert arm silently declined focus.
     qCDebug(lcScrollEngine) << "windowOpened focus:" << windowId << "focusNew=" << focusNew
                             << "arrivalTookFocus=" << arrivalTookFocus << "burstDepth=" << m_arrivalBurstDepth;
-    if (!focusNew && !priorActive.isEmpty() && state->strip().activeWindowId() == windowId
+    // Not when the stash restore focused the arrival as the strip's stashed
+    // focus: that is the focus the strip had, not one the arrival took, and
+    // the restore already put the stashed view around it.
+    if (!focusNew && !stashFocused && !priorActive.isEmpty() && state->strip().activeWindowId() == windowId
         && state->strip().containsWindow(priorActive)) {
         const ScrollLayoutParams params = layoutParamsForScreen(screenId);
         // A grouped join made the arrival its host column's shown tab. When

@@ -1381,8 +1381,11 @@ private:
     /// an entry that exists for @p key hands its blueprint cursor and identity to @p state before any tile is
     /// matched, because the claim can fail for an arrival the entry does not name while the spent-ness is owed to
     /// the state regardless. @p params is the caller's already-resolved layout params (the only caller holds them).
+    /// @p outFocused, when given, is set true when the restore focused @p windowId because the stash names it as
+    /// the strip's focused window, with the stashed view around it. The open path must not rewind that focus.
     bool restoreFromStripStash(ScrollState* state, const PhosphorEngine::PlacementStateKey& key,
-                               const QString& windowId, const ScrollLayoutParams& params, int minWidth, int minHeight);
+                               const QString& windowId, const ScrollLayoutParams& params, int minWidth, int minHeight,
+                               bool* outFocused = nullptr);
     /// The stashed tile restoreFromStripStash claims for @p windowId: its column and tile index, and, for a
     /// cross-session claim by app id, the stashed id the claim renames (empty for an exact-id match).
     struct StashTileMatch
@@ -1529,9 +1532,11 @@ private:
     /// column on another desktop: the float arms and the placement record
     /// are skipped, because both already spoke for this window on the desktop
     /// it came from and a live window must not consume cross-session memory.
+    /// @p outStashFocused, when given, is set true when the stash restore focused the window as the strip's stashed
+    /// focus (restoreFromStripStash's @p outFocused).
     bool insertOpenedWindow(ScrollState* state, const QString& windowId, const QString& screenId, int minWidthIn,
                             int minHeightIn, ScrollOpenParams* outOpenParams = nullptr, bool migration = false,
-                            QString* outDisplacedTab = nullptr, bool adoption = false);
+                            QString* outDisplacedTab = nullptr, bool adoption = false, bool* outStashFocused = nullptr);
     // engine_membership.cpp
     /// Point the container's primary resolution at currentKeyForScreen.
     void installContextResolver();

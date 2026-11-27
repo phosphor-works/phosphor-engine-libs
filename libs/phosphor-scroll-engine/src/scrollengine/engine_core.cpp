@@ -738,8 +738,11 @@ bool ScrollEngine::stripStashHasTileFor(const ScrollState* state, const Phosphor
 
 bool ScrollEngine::restoreFromStripStash(ScrollState* state, const PhosphorEngine::PlacementStateKey& key,
                                          const QString& windowId, const ScrollLayoutParams& params, int minWidth,
-                                         int minHeight)
+                                         int minHeight, bool* outFocused)
 {
+    if (outFocused) {
+        *outFocused = false;
+    }
     const auto it = m_stripStash.find(key);
     if (it == m_stripStash.end()) {
         return false;
@@ -1037,6 +1040,13 @@ bool ScrollEngine::restoreFromStripStash(ScrollState* state, const PhosphorEngin
         }
     } else if (!stashStrip.focusedWindowId.isEmpty() && state->strip().containsWindow(stashStrip.focusedWindowId)) {
         state->strip().focusWindow(stashStrip.focusedWindowId, params);
+        // The arrival IS the stashed focus: the caller's focus-new-windows
+        // rewind would hand the focus back to whichever column the restore
+        // seated first and scroll the view there, leaving the focused window
+        // parked off the screen (a monitor's return, #1301).
+        if (outFocused && stashStrip.focusedWindowId == windowId) {
+            *outFocused = true;
+        }
         // The anchor is main-axis pixels, so it only means anything if it was
         // captured on THIS axis. Replaying one from the other axis scrolls the
         // restored strip to a nonsense position, and an out-of-range anchor is

@@ -613,6 +613,41 @@ bool ScrollEngine::isMaximizedToEdges(const QString& windowId) const
     return column >= 0 && state->strip().columns().at(column).maximizedToEdges;
 }
 
+void ScrollEngine::holdForOwnWorkspace(const QString& rawWindowId)
+{
+    const QString id = canonicalizeForLookup(rawWindowId);
+    PhosphorEngine::PlacementStateKey key;
+    const ScrollState* state = stateForWindow(id, &key);
+    if (!state) {
+        return;
+    }
+    const ScrollStrip& strip = state->strip();
+    const int column = strip.columnOfWindow(id);
+    if (column < 0) {
+        return; // floating: nothing in the strip to hold
+    }
+    const Column& source = strip.columns().at(column);
+    OwnWorkspaceHold hold;
+    hold.origin = key;
+    hold.width = source.width;
+    hold.display = source.display;
+    if (source.tiles.size() > 1) {
+        hold.tileIndex = source.indexOfWindow(id);
+        hold.stackAnchor = source.anchorSiblingFor(hold.tileIndex);
+    } else {
+        hold.maximizedToEdges = source.maximizedToEdges;
+    }
+    if (column > 0 && !strip.columns().at(column - 1).tiles.isEmpty()) {
+        hold.leftAnchor = strip.columns().at(column - 1).tiles.first().windowId;
+    }
+    m_ownWorkspaceHolds.insert(id, hold);
+}
+
+void ScrollEngine::dropOwnWorkspaceHold(const QString& rawWindowId)
+{
+    m_ownWorkspaceHolds.remove(canonicalizeForLookup(rawWindowId));
+}
+
 bool ScrollEngine::columnHoldsFullscreenHold(const ScrollStrip& strip, int columnIdx) const
 {
     if (m_fullscreenHolds.isEmpty() || columnIdx < 0 || columnIdx >= strip.columnCount()) {

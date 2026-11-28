@@ -701,6 +701,19 @@ void EngineRuntime::initializeWorkspaces()
         }
         return state;
     });
+    controller->setOwnWorkspaceHoldHandler([this](const QString& instanceId, bool hold) {
+        for (PhosphorEngine::PlacementEngineBase* engine :
+             {m_scrollEngine.get(), m_autotileEngine.get(), m_snapEngine.get()}) {
+            if (!engine) {
+                continue;
+            }
+            if (hold) {
+                engine->holdForOwnWorkspace(instanceId);
+            } else {
+                engine->dropOwnWorkspaceHold(instanceId);
+            }
+        }
+    });
     const auto applyOwnWorkspaceOptions = [this, controller]() {
         controller->setOwnWorkspaceOptions(m_settings->workspacesFullscreenOwnWorkspace(),
                                            m_settings->workspacesMaximizedOwnWorkspace());

@@ -222,6 +222,12 @@ public:
     /// Inject the state reader. The daemon backs it with the engines' answers
     /// and the window registry. Unset, the feature never moves a window.
     void setOwnWorkspaceStateProvider(std::function<OwnWorkspaceWindowState(const QString& instanceId)> provider);
+    /// Inject the engines' hold (PlacementEngineBase::holdForOwnWorkspace):
+    /// called with true just before a window moves to its own workspace, and
+    /// with false when its own workspace ends without the window coming back.
+    /// The return itself needs no call, since the engine takes its hold back
+    /// on the arrival.
+    void setOwnWorkspaceHoldHandler(std::function<void(const QString& instanceId, bool hold)> handler);
     /// The two options (Workspaces.Behavior FullscreenOwnWorkspace and
     /// MaximizedOwnWorkspace). Turning one off ends no own workspace that is
     /// already open: each one ends on its window's own state edge or close.
@@ -358,6 +364,7 @@ private:
     void noteOwnWorkspaceCensus(const QString& instanceId);
     int othersOnDesktop(const QString& desktopId, const QString& exceptInstanceId) const;
     std::function<OwnWorkspaceWindowState(const QString&)> m_ownWorkspaceState;
+    std::function<void(const QString&, bool)> m_ownWorkspaceHold;
     bool m_ownFullscreen = false;
     bool m_ownMaximized = false;
     QHash<QString, OwnWorkspace> m_ownWorkspaces; ///< instanceId → record

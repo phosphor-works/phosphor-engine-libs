@@ -22,6 +22,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The
   entry carries the `maximizedToEdges` flag, as a scrolling column does. The state ends when the window closes,
   floats, leaves the engine or joins a monocle stack. `phosphor-engine-runtime`: `AutotileService::toggleMaximizeToEdges`
   is the verb behind it. ([workspace#28](https://github.com/phosphor-works/workspace/issues/28))
+- `phosphor-engine-runtime`: own workspaces. With the `Workspaces.Behavior` option `FullscreenOwnWorkspace` or
+  `MaximizedOwnWorkspace` on (both off by default), `WorkspaceController` moves a window that goes fullscreen, or that
+  the user maximizes, to a new workspace directly after the one it was on, and shows it. When the window leaves that
+  state it moves back and the monitor shows the origin again. When it closes, the monitor shows the origin and the
+  window last active there takes focus. ([PlasmaZones#1201](https://github.com/phosphor-works/PlasmaZones/issues/1201))
+- `phosphor-engine`: `PlacementEngineBase::holdForOwnWorkspace` and `dropOwnWorkspaceHold`, and the
+  `windowMaximizedToEdgesChanged` signal. `phosphor-tile-engine` and `phosphor-scroll-engine` implement the hold: the
+  window keeps its maximize across the trip and comes back to its place in the order or its column slot.
+  `ScrollEngine::isWindowedFullscreen` and `ScrollEngine::isMaximizedToEdges` answer for one window.
+  ([PlasmaZones#1201](https://github.com/phosphor-works/PlasmaZones/issues/1201))
+- `phosphor-workspaces`: `WorkspaceReconciler::reorderWorkspace` moves any workspace to a slot of its monitor's list.
 
 ### Changed
 

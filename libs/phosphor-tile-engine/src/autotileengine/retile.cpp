@@ -306,6 +306,22 @@ bool AutotileEngine::isMaximizedToEdges(const QString& rawWindowId) const
     return m_maximizedToEdgesWindows.contains(canonicalizeForLookup(rawWindowId));
 }
 
+void AutotileEngine::holdForOwnWorkspace(const QString& rawWindowId)
+{
+    const QString windowId = canonicalizeForLookup(rawWindowId);
+    const auto key = m_states.windowKey(windowId);
+    PhosphorTiles::TilingState* state = key ? m_states.stateForKey(*key) : nullptr;
+    if (!state || !state->containsWindow(windowId)) {
+        return;
+    }
+    m_ownWorkspaceHolds.insert(windowId, OwnWorkspaceHold{*key, state->windowOrder()});
+}
+
+void AutotileEngine::dropOwnWorkspaceHold(const QString& rawWindowId)
+{
+    m_ownWorkspaceHolds.remove(canonicalizeForLookup(rawWindowId));
+}
+
 void AutotileEngine::swapFocusedWithMaster()
 {
     m_navigation->swapFocusedWithMaster();

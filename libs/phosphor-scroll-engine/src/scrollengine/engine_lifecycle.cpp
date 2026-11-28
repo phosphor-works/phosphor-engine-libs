@@ -268,6 +268,43 @@ bool ScrollEngine::insertOpenedWindow(ScrollState* state, const QString& windowI
         insertArm = "stash";
         consumePendingInitialOrder(screenId, windowId);
     }
+    // A window on a trip to its own workspace (holdForOwnWorkspace). Back on
+    // the origin it takes its slot again: the column it shared, found by a
+    // surviving sibling, or a column of its own right of the column that was
+    // on its left. On its own workspace it is a column of its own with its
+    // width, maximized to the edges when it left maximized, so the trip keeps
+    // the user's maximize.
+    if (!inserted) {
+        if (const auto hold = m_ownWorkspaceHolds.constFind(windowId); hold != m_ownWorkspaceHolds.constEnd()) {
+            ScrollStrip& strip = state->strip();
+            if (hold->origin == currentKeyForScreen(screenId)) {
+                const int stackColumn = hold->stackAnchor.isEmpty() ? -1 : strip.columnOfWindow(hold->stackAnchor);
+                if (stackColumn >= 0) {
+                    inserted = strip.insertWindowIntoColumnAt(stackColumn, hold->tileIndex, windowId, params, minWidth,
+                                                              minHeight);
+                }
+                if (!inserted) {
+                    const int leftColumn = hold->leftAnchor.isEmpty() ? -1 : strip.columnOfWindow(hold->leftAnchor);
+                    const int at = hold->leftAnchor.isEmpty() ? 0 : leftColumn + 1;
+                    if (hold->leftAnchor.isEmpty() || leftColumn >= 0) {
+                        inserted = strip.insertWindowAt(at, windowId, hold->width, hold->display, params);
+                    }
+                }
+                m_ownWorkspaceHolds.remove(windowId);
+            } else {
+                const bool maximize = hold->maximizedToEdges;
+                inserted = strip.insertWindow(windowId, hold->width, hold->display, params, minWidth, minHeight);
+                if (inserted && maximize) {
+                    strip.toggleMaximizeToEdgesForWindow(windowId, params);
+                }
+            }
+            if (inserted) {
+                insertArm = "own-workspace";
+                consumePendingInitialOrder(screenId, windowId);
+            }
+        }
+    }
+
     // A column under the fullscreen hold takes no tile: a window opening beside
     // a fullscreen game or video takes a column of its own (#1266).
     const bool activeColumnHeld = columnHoldsFullscreenHold(state->strip(), state->strip().activeColumnIndex());
@@ -997,6 +1034,8 @@ void ScrollEngine::windowClosed(const QString& rawWindowId)
     // must not survive to restore a dead id (autotile's
     // dropClosedWindowFromDragPreview twin).
     dropClosedWindowFromDragPreview(windowId);
+    // A window that closes on its own workspace never comes back to its slot.
+    m_ownWorkspaceHolds.remove(windowId);
     // A pending self-activation for a window that closes before its echo
     // lands can never be answered; without this a later genuine focus of a
     // reused id would be eaten as that echo.

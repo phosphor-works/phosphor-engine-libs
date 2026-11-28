@@ -253,6 +253,14 @@ public:
     /// Whether the column holding @p windowId is maximized to the edges (toggleMaximizeToEdges),
     /// in whichever context the window is tracked. False for a window no strip holds.
     bool isMaximizedToEdges(const QString& windowId) const;
+
+    /// PlacementEngineBase: hold the window's column slot across a trip to an
+    /// own workspace. On the own workspace it opens as a column of its own with
+    /// its width and, when it was alone in a maximized column, its maximize to
+    /// edges. Back on the origin it returns to the column it shared, or to a
+    /// column of its own right of the column that was on its left.
+    void holdForOwnWorkspace(const QString& windowId) override;
+    void dropOwnWorkspaceHold(const QString& windowId) override;
     /// Drop the closed-mid-hold memory once the daemon's close capture has read it, or a live
     /// release left no capture to read it. The same moment ends the last-applied rect a close
     /// retained (lastManagedRect), when the window no longer holds a place in any strip here, since
@@ -1948,6 +1956,25 @@ private:
     /// column must not come back as the default width). Value type in
     /// ScrollStashTypes.h beside the stash types.
     QHash<QString, FloatRestore> m_floatRestore;
+    /// A window away on its own workspace (holdForOwnWorkspace).
+    struct OwnWorkspaceHold
+    {
+        PhosphorEngine::PlacementStateKey origin;
+        /// A window of the column to the left of the window's own column, or
+        /// empty for the strip's first column. Located again on the return,
+        /// since column indices shift while the window is away.
+        QString leftAnchor;
+        /// A sibling of a shared column and the window's tile index in it.
+        /// Empty when the window had the column to itself.
+        QString stackAnchor;
+        int tileIndex = -1;
+        ColumnWidth width;
+        ColumnDisplay display = ColumnDisplay::Normal;
+        bool maximizedToEdges = false;
+    };
+    /// Canonical id → hold. Taken back by the open path on the origin, and
+    /// dropped on close, on dropOwnWorkspaceHold and by pruneStaleWindows.
+    QHash<QString, OwnWorkspaceHold> m_ownWorkspaceHolds;
     /// Strip tiles under the compositor's own-fullscreen hold (setWindowFullscreenFloat). The tile stays in
     /// its column. An id leaves the set when the hold ends, when the window floats, closes or is released, and
     /// when it is re-announced on its own context.

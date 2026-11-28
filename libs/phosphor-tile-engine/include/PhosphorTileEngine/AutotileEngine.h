@@ -788,6 +788,14 @@ public:
     /// Whether the window is maximized to the edges (see toggleMaximizeToEdges).
     bool isMaximizedToEdges(const QString& windowId) const;
 
+    /// PlacementEngineBase: hold the window's place in its tiling order and its
+    /// maximize to edges across a trip to an own workspace. The window's
+    /// maximize survives the handoff on the way out, so it arrives maximized,
+    /// and its return to the origin context inserts it where it was among the
+    /// windows still there.
+    void holdForOwnWorkspace(const QString& windowId) override;
+    void dropOwnWorkspaceHold(const QString& windowId) override;
+
     /**
      * @brief Swap the currently focused window with the master window
      *
@@ -1828,6 +1836,17 @@ private:
     /// maximizedToEdges flag, so applyTiling announces each change once
     /// (windowMaximizedToEdgesChanged).
     QSet<QString> m_lastAppliedMaximizedToEdges;
+
+    /// A window away on its own workspace (holdForOwnWorkspace): the context
+    /// it left and that context's window order when it left.
+    struct OwnWorkspaceHold
+    {
+        PhosphorEngine::TilingStateKey origin;
+        QStringList order;
+    };
+    /// Canonical id → hold. Taken back by insertWindow on the origin, and
+    /// dropped on close, on dropOwnWorkspaceHold and by pruneStaleWindows.
+    QHash<QString, OwnWorkspaceHold> m_ownWorkspaceHolds;
 
     PhosphorZones::LayoutRegistry* m_layoutManager = nullptr;
     PhosphorEngine::IWindowTrackingService* m_windowTracker = nullptr;

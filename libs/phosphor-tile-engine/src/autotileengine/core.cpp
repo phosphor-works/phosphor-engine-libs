@@ -139,6 +139,9 @@ int AutotileEngine::pruneStaleWindows(const QSet<QString>& aliveWindowIds)
             ++it;
         }
     }
+    for (auto it = m_ownWorkspaceHolds.begin(); it != m_ownWorkspaceHolds.end();) {
+        it = aliveWindowIds.contains(it.key()) ? std::next(it) : m_ownWorkspaceHolds.erase(it);
+    }
     for (auto it = m_lastAppliedMaximizedToEdges.begin(); it != m_lastAppliedMaximizedToEdges.end();) {
         if (!aliveWindowIds.contains(*it)) {
             it = m_lastAppliedMaximizedToEdges.erase(it);

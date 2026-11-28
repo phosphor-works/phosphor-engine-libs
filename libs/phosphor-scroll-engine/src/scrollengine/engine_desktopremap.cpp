@@ -124,6 +124,19 @@ void ScrollEngine::applyDesktopRemap(const DesktopRemap& remap)
     const auto scratch = [](const PlacementStateKey& key) {
         return PlacementStateKey{key.screenId, -key.desktop, key.activity};
     };
+    // An own-workspace hold names the context its window left by desktop
+    // number, so it follows the renumber. A hold whose desktop went has no
+    // slot left to give back.
+    for (auto it = m_ownWorkspaceHolds.begin(); it != m_ownWorkspaceHolds.end();) {
+        if (it->origin.desktop > 0 && remap.map(it->origin.desktop) <= 0) {
+            it = m_ownWorkspaceHolds.erase(it);
+            continue;
+        }
+        if (moves(it->origin)) {
+            it->origin = mapped(it->origin);
+        }
+        ++it;
+    }
 
     // The context-keyed side maps OUTLIVE their states: a strip stash is
     // written as the state is torn down, and the override map is pushed per

@@ -58,6 +58,25 @@ public:
         return {};
     }
 
+    /// The workspace controller is about to move @p windowId to a temporary
+    /// workspace of its own (a fullscreen or maximized window, PlasmaZones#1201),
+    /// and will move it back to the desktop it is on now. An engine that places
+    /// the window keeps what it needs to give the window its place back on its
+    /// return to this desktop, and keeps the window's own state (its maximize)
+    /// across the move. The hold ends when the window comes back, when it
+    /// closes, and on dropOwnWorkspaceHold. The default keeps nothing, which is
+    /// right for an engine whose placement already survives a desktop move.
+    virtual void holdForOwnWorkspace(const QString& windowId)
+    {
+        Q_UNUSED(windowId)
+    }
+    /// The own workspace ended without the window coming back (it moved on, or
+    /// its origin went away): forget the hold.
+    virtual void dropOwnWorkspaceHold(const QString& windowId)
+    {
+        Q_UNUSED(windowId)
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════
     // Settings — universal pattern for all engines
     //

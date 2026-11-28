@@ -259,6 +259,27 @@ bool AutotileEngine::insertWindow(const QString& windowId, const QString& screen
         }
     }
 
+    // A window back from its own workspace takes its place among the windows
+    // still in the context it left: after as many of its old predecessors as
+    // are there now. Its float bit never changed, since a floating window
+    // keeps no hold worth taking (it is not in the order's tiles).
+    if (!inserted) {
+        if (const auto hold = m_ownWorkspaceHolds.constFind(windowId);
+            hold != m_ownWorkspaceHolds.constEnd() && hold->origin == currentKeyForScreen(screenId)) {
+            int insertAt = 0;
+            for (const QString& earlier : hold->order) {
+                if (earlier == windowId) {
+                    break;
+                }
+                if (state->containsWindow(earlier)) {
+                    ++insertAt;
+                }
+            }
+            inserted = state->addWindow(windowId, insertAt);
+            m_ownWorkspaceHolds.remove(windowId);
+        }
+    }
+
     // An evacuee granted its parked place in this context while the context
     // was out of view takes that place now, with its float bit and, for the
     // first one back, the context's tuning.

@@ -34,6 +34,11 @@ void WorkspaceController::setOwnWorkspaceStateProvider(
     m_ownWorkspaceState = std::move(provider);
 }
 
+void WorkspaceController::setOwnWorkspaceHoldHandler(std::function<void(const QString& instanceId, bool hold)> handler)
+{
+    m_ownWorkspaceHold = std::move(handler);
+}
+
 void WorkspaceController::setOwnWorkspaceOptions(bool fullscreen, bool maximized)
 {
     if (m_ownFullscreen == fullscreen && m_ownMaximized == maximized) {
@@ -156,6 +161,11 @@ void WorkspaceController::enterOwnWorkspace(const QString& instanceId)
         m_ownWorkspaces.insert(instanceId, record);
         qCInfo(lcWorkspaceCtl) << "opening own workspace" << trailing << "for window" << instanceId << "from" << origin
                                << "on" << screenId;
+        // The engine keeps the window's place and its maximize first, since
+        // the move's handoff releases both.
+        if (m_ownWorkspaceHold) {
+            m_ownWorkspaceHold(instanceId, true);
+        }
         // Not the subject of a verb, so the move leaves the window's
         // fullscreen alone, and the desktop half only: the own workspace is on
         // the window's monitor.
@@ -197,6 +207,9 @@ void WorkspaceController::noteOwnWorkspaceCensus(const QString& instanceId)
         qCInfo(lcWorkspaceCtl) << "window" << instanceId << "left its own workspace" << it->ownDesktopId
                                << "— forgetting the record";
         m_ownWorkspaces.erase(it);
+        if (m_ownWorkspaceHold) {
+            m_ownWorkspaceHold(instanceId, false);
+        }
     }
 }
 
@@ -235,6 +248,9 @@ void WorkspaceController::leaveOwnWorkspace(const QString& instanceId, bool clos
         }
         return;
     case OWD::LeaveAction::Forget:
+        if (m_ownWorkspaceHold) {
+            m_ownWorkspaceHold(instanceId, false);
+        }
         return;
     }
 }

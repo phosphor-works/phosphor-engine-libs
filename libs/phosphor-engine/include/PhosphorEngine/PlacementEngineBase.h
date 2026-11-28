@@ -204,6 +204,14 @@ Q_SIGNALS:
     void navigationFeedback(bool success, const QString& action, const QString& reason, const QString& sourceId,
                             const QString& targetId, const QString& screenId);
     void windowFloatingChanged(const QString& windowId, bool floating, const QString& screenId);
+    /// The engine's maximize to edges of @p windowId changed, as the batch it
+    /// is building applies it (the scrolling column's, the tiling override).
+    /// Emitted from inside the layout pass, before the compositor has written
+    /// the maximize bit, so a consumer that acts on it connects queued. The
+    /// workspace controller re-reads the window's state on it: the maximize
+    /// edge KWin reports reaches the daemon before the engine has taken the
+    /// request.
+    void windowMaximizedToEdgesChanged(const QString& windowId, bool maximized);
     void activateWindowRequested(const QString& windowId);
 
     /// Emitted when directional navigation moves a window across virtual

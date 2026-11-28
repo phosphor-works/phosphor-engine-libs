@@ -246,6 +246,13 @@ public:
     /// reads it to treat the window's frame, the output rect, as a suspension and never as free
     /// geometry.
     bool isFullscreenHeld(const QString& windowId) const;
+    /// Whether the strip holds @p windowId in windowed fullscreen (toggleWindowedFullscreen):
+    /// KWin's fullscreen state that the strip imposes at the column rect. False for a window no
+    /// strip holds. The daemon reads it to tell that state from a fullscreen the client asked for.
+    bool isWindowedFullscreen(const QString& windowId) const;
+    /// Whether the column holding @p windowId is maximized to the edges (toggleMaximizeToEdges),
+    /// in whichever context the window is tracked. False for a window no strip holds.
+    bool isMaximizedToEdges(const QString& windowId) const;
     /// Drop the closed-mid-hold memory once the daemon's close capture has read it, or a live
     /// release left no capture to read it. The same moment ends the last-applied rect a close
     /// retained (lastManagedRect), when the window no longer holds a place in any strip here, since

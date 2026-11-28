@@ -1824,6 +1824,10 @@ private:
     /// floated window, and every window of a monocle stack, is pruned from it
     /// in applyTiling.
     QSet<QString> m_maximizedToEdgesWindows;
+    /// The windows the last batch of their screen sent with the
+    /// maximizedToEdges flag, so applyTiling announces each change once
+    /// (windowMaximizedToEdgesChanged).
+    QSet<QString> m_lastAppliedMaximizedToEdges;
 
     PhosphorZones::LayoutRegistry* m_layoutManager = nullptr;
     PhosphorEngine::IWindowTrackingService* m_windowTracker = nullptr;

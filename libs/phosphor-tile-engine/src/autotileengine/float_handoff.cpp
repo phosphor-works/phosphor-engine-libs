@@ -525,6 +525,7 @@ void AutotileEngine::handoffRelease(const QString& windowId)
     // (scrolling keeps one on the column), so the window arrives unmaximized
     // there, as every other per-mode state does.
     m_maximizedToEdgesWindows.remove(canonical);
+    m_lastAppliedMaximizedToEdges.remove(canonical);
     // The durable slot goes with the tracking (the scroll twin carries the
     // same clear): a released window is one this engine knowingly gave up,
     // and a stale autotile TILED slot left in the unified record is not

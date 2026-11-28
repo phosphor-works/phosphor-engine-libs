@@ -777,6 +777,7 @@ void ScrollEngine::applyLayout(const QString& screenId, bool focusWindowAfter)
             // keeps asserting a maximize the engine has already dropped.
             if (m_lastAppliedMaximizedToEdges.contains(tile.windowId) != maximizedToEdges) {
                 anyEntryChanged = true;
+                Q_EMIT windowMaximizedToEdgesChanged(tile.windowId, maximizedToEdges);
             }
             if (maximizedToEdges) {
                 m_lastAppliedMaximizedToEdges.insert(tile.windowId);

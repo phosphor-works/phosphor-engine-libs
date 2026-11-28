@@ -217,6 +217,14 @@ void appendWorkspacesSchema(PhosphorConfig::Schema& schema)
          QStringLiteral("Shows an OSD hint when a monitor switched to another monitor's workspace, for example "
                         "through the Pager or the Overview, snaps back to its own. Also shows one when a window "
                         "lands on a workspace that is being removed and is moved to the current one.")},
+        {CD::fullscreenOwnWorkspaceKey(), CD::workspacesFullscreenOwnWorkspace(), QMetaType::Bool,
+         QStringLiteral("Moves a window that goes fullscreen to a new workspace directly after the one it was on. "
+                        "When the window leaves fullscreen or closes, the monitor goes back to the workspace the "
+                        "window came from.")},
+        {CD::maximizedOwnWorkspaceKey(), CD::workspacesMaximizedOwnWorkspace(), QMetaType::Bool,
+         QStringLiteral("Moves a window that you maximize to a new workspace directly after the one it was on. "
+                        "When you restore the window or close it, the monitor goes back to the workspace the "
+                        "window came from.")},
     };
     schema.groups[CD::workspacesNamedGroup()] = {
         {CD::entriesKey(), CD::workspacesNamedEntries(), QMetaType::QVariantList,

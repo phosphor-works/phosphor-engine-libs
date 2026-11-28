@@ -595,6 +595,24 @@ bool ScrollEngine::isFullscreenHeld(const QString& windowId) const
     return m_fullscreenHolds.contains(id) || m_closedFullscreenHolds.contains(id);
 }
 
+bool ScrollEngine::isWindowedFullscreen(const QString& windowId) const
+{
+    const QString id = canonicalizeForLookup(windowId);
+    const ScrollState* state = stateForWindow(id);
+    return state && state->strip().isWindowedFullscreen(id);
+}
+
+bool ScrollEngine::isMaximizedToEdges(const QString& windowId) const
+{
+    const QString id = canonicalizeForLookup(windowId);
+    const ScrollState* state = stateForWindow(id);
+    if (!state) {
+        return false;
+    }
+    const int column = state->strip().columnOfWindow(id);
+    return column >= 0 && state->strip().columns().at(column).maximizedToEdges;
+}
+
 bool ScrollEngine::columnHoldsFullscreenHold(const ScrollStrip& strip, int columnIdx) const
 {
     if (m_fullscreenHolds.isEmpty() || columnIdx < 0 || columnIdx >= strip.columnCount()) {

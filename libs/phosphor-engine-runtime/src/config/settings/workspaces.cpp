@@ -33,6 +33,14 @@ P_STORE_GET(bool, workspacesSnapBackOsdHint, workspacesBehaviorGroup, snapBackOs
 P_STORE_SET_BOOL(setWorkspacesSnapBackOsdHint, workspacesBehaviorGroup, snapBackOsdHintKey,
                  workspacesSnapBackOsdHintChanged)
 
+P_STORE_GET(bool, workspacesFullscreenOwnWorkspace, workspacesBehaviorGroup, fullscreenOwnWorkspaceKey, bool)
+P_STORE_SET_BOOL(setWorkspacesFullscreenOwnWorkspace, workspacesBehaviorGroup, fullscreenOwnWorkspaceKey,
+                 workspacesFullscreenOwnWorkspaceChanged)
+
+P_STORE_GET(bool, workspacesMaximizedOwnWorkspace, workspacesBehaviorGroup, maximizedOwnWorkspaceKey, bool)
+P_STORE_SET_BOOL(setWorkspacesMaximizedOwnWorkspace, workspacesBehaviorGroup, maximizedOwnWorkspaceKey,
+                 workspacesMaximizedOwnWorkspaceChanged)
+
 namespace {
 /// The id-less entry of @p before that each id first appearing in @p after
 /// replaced, as stamped id → that entry's name: what the settings page's

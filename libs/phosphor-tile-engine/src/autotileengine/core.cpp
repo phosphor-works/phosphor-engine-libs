@@ -139,6 +139,13 @@ int AutotileEngine::pruneStaleWindows(const QSet<QString>& aliveWindowIds)
             ++it;
         }
     }
+    for (auto it = m_lastAppliedMaximizedToEdges.begin(); it != m_lastAppliedMaximizedToEdges.end();) {
+        if (!aliveWindowIds.contains(*it)) {
+            it = m_lastAppliedMaximizedToEdges.erase(it);
+        } else {
+            ++it;
+        }
+    }
     // Same independent keying for the last-applied tile rects.
     for (auto it = m_lastAppliedTileRect.begin(); it != m_lastAppliedTileRect.end();) {
         if (!aliveWindowIds.contains(it.key())) {

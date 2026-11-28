@@ -534,6 +534,14 @@ void AutotileEngine::applyTiling(const QString& screenId)
         if (maximizedToEdges) {
             obj[QLatin1String("maximizedToEdges")] = true;
         }
+        if (m_lastAppliedMaximizedToEdges.contains(windows[i]) != maximizedToEdges) {
+            if (maximizedToEdges) {
+                m_lastAppliedMaximizedToEdges.insert(windows[i]);
+            } else {
+                m_lastAppliedMaximizedToEdges.remove(windows[i]);
+            }
+            Q_EMIT windowMaximizedToEdgesChanged(windows[i], maximizedToEdges);
+        }
         if (!stacking.isEmpty()) {
             obj[QLatin1String("stacking")] = stacking;
         }

@@ -393,6 +393,10 @@ public:
     Q_PROPERTY(bool workspacesEnabled READ workspacesEnabled WRITE setWorkspacesEnabled NOTIFY workspacesEnabledChanged)
     Q_PROPERTY(bool workspacesSnapBackOsdHint READ workspacesSnapBackOsdHint WRITE setWorkspacesSnapBackOsdHint NOTIFY
                    workspacesSnapBackOsdHintChanged)
+    Q_PROPERTY(bool workspacesFullscreenOwnWorkspace READ workspacesFullscreenOwnWorkspace WRITE
+                   setWorkspacesFullscreenOwnWorkspace NOTIFY workspacesFullscreenOwnWorkspaceChanged)
+    Q_PROPERTY(bool workspacesMaximizedOwnWorkspace READ workspacesMaximizedOwnWorkspace WRITE
+                   setWorkspacesMaximizedOwnWorkspace NOTIFY workspacesMaximizedOwnWorkspaceChanged)
     Q_PROPERTY(QVariantList workspacesNamedEntries READ workspacesNamedEntries WRITE setWorkspacesNamedEntries NOTIFY
                    workspacesNamedEntriesChanged)
     // The workspace chords and quick-slot targets. Q_PROPERTY presence is
@@ -1487,6 +1491,10 @@ public:
     void setWorkspacesEnabled(bool enabled);
     bool workspacesSnapBackOsdHint() const;
     void setWorkspacesSnapBackOsdHint(bool enabled);
+    bool workspacesFullscreenOwnWorkspace() const;
+    void setWorkspacesFullscreenOwnWorkspace(bool enabled);
+    bool workspacesMaximizedOwnWorkspace() const;
+    void setWorkspacesMaximizedOwnWorkspace(bool enabled);
     QVariantList workspacesNamedEntries() const;
     void setWorkspacesNamedEntries(const QVariantList& entries);
     QString workspaceFocusUpShortcut() const;
@@ -2541,6 +2549,8 @@ Q_SIGNALS:
     /// every consumer holds the concrete Settings and reads the value there.
     void workspacesEnabledChanged();
     void workspacesSnapBackOsdHintChanged();
+    void workspacesFullscreenOwnWorkspaceChanged();
+    void workspacesMaximizedOwnWorkspaceChanged();
     void workspacesNamedEntriesChanged();
     void workspaceFocusUpShortcutChanged();
     void workspaceFocusDownShortcutChanged();

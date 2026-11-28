@@ -38,6 +38,20 @@ public:
         return true;
     }
 
+    /// Temporary workspaces: a window that goes fullscreen (FullscreenOwnWorkspace)
+    /// or that the user maximizes (MaximizedOwnWorkspace) moves to a new
+    /// workspace directly after the one it was on, and goes back when it leaves
+    /// that state. Off by default, so dynamic workspaces behave as before until
+    /// the user turns one on.
+    static constexpr bool workspacesFullscreenOwnWorkspace()
+    {
+        return false;
+    }
+    static constexpr bool workspacesMaximizedOwnWorkspace()
+    {
+        return false;
+    }
+
     /// Named-workspace declarations: none by default. Entry shape (all
     /// QVariantMap fields): id (persistent braced QUuid, empty until a
     /// producer stamps one), name (unique, non-empty), output (screenId, empty

@@ -1507,6 +1507,11 @@ Q_SIGNALS:
      */
     void activateWindowRequested(const QString& windowId);
 
+    /// The compositor reported @p windowId active (windowActivated). The
+    /// workspace controller records it per desktop, so the end of an own
+    /// workspace can focus the window last active on the origin.
+    void activeWindowChanged(const QString& windowId);
+
     /// KWin should move @p windowId to desktop @p desktop (1-based) on the
     /// output it is on; a target not in view parks it for its placement on
     /// arrival. Every non-workspace desktop move: the desktop shortcut, a

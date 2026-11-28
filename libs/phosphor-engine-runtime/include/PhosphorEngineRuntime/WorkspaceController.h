@@ -208,7 +208,39 @@ public:
     int routeWindowToNamedWorkspace(const QString& entryId, const QString& name, const QString& windowId,
                                     bool moveOutput, QString* ownerScreenOut = nullptr);
 
+    // ── Own workspaces (PlasmaZones#1201) ──────────────────────────────────
+    /// A window's state as the own-workspace feature reads it. Both fields are
+    /// the USER's state: fullscreen is the client's own (not a windowed
+    /// fullscreen the scrolling strip imposes), and maximized is the user's
+    /// maximize (an engine's maximize to edges, or KWin's on a screen no
+    /// engine places), not a monocle stack's.
+    struct OwnWorkspaceWindowState
+    {
+        bool fullscreen = false;
+        bool maximized = false;
+    };
+    /// Inject the state reader. The daemon backs it with the engines' answers
+    /// and the window registry. Unset, the feature never moves a window.
+    void setOwnWorkspaceStateProvider(std::function<OwnWorkspaceWindowState(const QString& instanceId)> provider);
+    /// The two options (Workspaces.Behavior FullscreenOwnWorkspace and
+    /// MaximizedOwnWorkspace). Turning one off ends no own workspace that is
+    /// already open: each one ends on its window's own state edge or close.
+    void setOwnWorkspaceOptions(bool fullscreen, bool maximized);
+    /// The compositor activated @p instanceId. Recorded against the window's
+    /// desktop, so the end of an own workspace can focus the window that was
+    /// last active on the origin.
+    void noteWindowActivated(const QString& instanceId);
+    /// An engine changed a state the reader answers from (its maximize to
+    /// edges). Reads the window again, as a metadata edge would.
+    void noteWindowStateChanged(const QString& instanceId);
+    /// The window's own workspace, or empty when it has none.
+    QString ownWorkspaceOf(const QString& instanceId) const;
+
 Q_SIGNALS:
+    /// The end of an own workspace asks for @p instanceId to take focus (the
+    /// window that was last active on the origin, or the window itself when
+    /// it went back). → WindowTracker::activateWindow.
+    void windowActivationRequested(const QString& instanceId);
     /// → adaptor setScreenDesktopRequested (effect per-output switch, by
     /// desktop id). @p purpose is UserSwitch for a focus verb and Correction
     /// for every switch the daemon makes on its own.
@@ -306,6 +338,31 @@ private:
     /// dropping the entry (a screen-id rename re-arming under the new id, an
     /// unplug) or re-arming it cancels this one.
     void scheduleSnapBackRetry(const QString& screenId, qint64 delayMs);
+
+    /// Own workspaces (workspacecontroller_own.cpp).
+    struct OwnWorkspace
+    {
+        QString screenId; ///< the owner screen of the origin and of the own workspace
+        QString originDesktopId;
+        QString ownDesktopId;
+        QString originLastActive; ///< instance id last active on the origin, or empty
+        bool arrived = false; ///< the window has reached its own workspace
+    };
+    /// Enter or leave on the window's current state (both from a metadata
+    /// push and from an option change).
+    void evaluateOwnWorkspace(const QString& instanceId);
+    void enterOwnWorkspace(const QString& instanceId);
+    void leaveOwnWorkspace(const QString& instanceId, bool closed);
+    /// The census half: arrival on the own workspace places it after the
+    /// origin; a move anywhere else forgets the record.
+    void noteOwnWorkspaceCensus(const QString& instanceId);
+    int othersOnDesktop(const QString& desktopId, const QString& exceptInstanceId) const;
+    std::function<OwnWorkspaceWindowState(const QString&)> m_ownWorkspaceState;
+    bool m_ownFullscreen = false;
+    bool m_ownMaximized = false;
+    QHash<QString, OwnWorkspace> m_ownWorkspaces; ///< instanceId → record
+    QSet<QString> m_ownWorkspaceEnterPending; ///< an enter queued behind structural churn
+    QHash<QString, QString> m_lastActiveByDesktop; ///< desktopId → instanceId
 
     PhosphorWorkspaces::VirtualDesktopManager* m_vdm;
     PhosphorEngine::WindowRegistry* m_registry;

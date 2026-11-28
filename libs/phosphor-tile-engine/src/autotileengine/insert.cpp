@@ -259,6 +259,27 @@ bool AutotileEngine::insertWindow(const QString& windowId, const QString& screen
         }
     }
 
+    // A window back from its own workspace takes its place among the windows
+    // still in the context it left: after as many of its old predecessors as
+    // are there now. Its float bit never changed, since a floating window
+    // keeps no hold worth taking (it is not in the order's tiles).
+    if (!inserted) {
+        if (const auto hold = m_ownWorkspaceHolds.constFind(windowId);
+            hold != m_ownWorkspaceHolds.constEnd() && hold->origin == currentKeyForScreen(screenId)) {
+            int insertAt = 0;
+            for (const QString& earlier : hold->order) {
+                if (earlier == windowId) {
+                    break;
+                }
+                if (state->containsWindow(earlier)) {
+                    ++insertAt;
+                }
+            }
+            inserted = state->addWindow(windowId, insertAt);
+            m_ownWorkspaceHolds.remove(windowId);
+        }
+    }
+
     // An evacuee granted its parked place in this context while the context
     // was out of view takes that place now, with its float bit and, for the
     // first one back, the context's tuning.
@@ -464,6 +485,19 @@ bool AutotileEngine::insertWindow(const QString& windowId, const QString& screen
     // their states keep the tiles. For a fresh open this is the same as the
     // replace it supersedes.
     m_states.addMembership(windowId, currentKey);
+    // A daemon restart: the first time this engine sees the window in this
+    // run, its exact record (the id outlives the daemon) gives back the
+    // maximize to edges it had. Only the first time, since later in the run
+    // the record can be older than the live state.
+    if (!m_windowsSeenThisRun.contains(windowId)) {
+        m_windowsSeenThisRun.insert(windowId);
+        if (m_windowTracker && !state->isFloating(windowId)) {
+            if (const auto rec = m_windowTracker->placementStore().peekExact(windowId);
+                rec && rec->slotFor(engineId()).maximizedToEdges) {
+                m_maximizedToEdgesWindows.insert(windowId);
+            }
+        }
+    }
     return true;
 }
 

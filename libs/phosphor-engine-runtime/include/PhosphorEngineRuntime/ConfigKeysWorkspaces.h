@@ -76,6 +76,14 @@ public:
     // Owner-wins snap-back OSD hint toggle.
     P_CONFIG_KEY(snapBackOsdHintKey, "SnapBackOsdHint")
 
+    // A window that goes fullscreen, or that the user maximizes, gets a
+    // temporary workspace of its own after the one it was on.
+    P_CONFIG_KEY(fullscreenOwnWorkspaceKey, "FullscreenOwnWorkspace")
+    P_CONFIG_KEY(maximizedOwnWorkspaceKey, "MaximizedOwnWorkspace")
+    // A borderless window whose frame covers its whole screen (a borderless
+    // game) counts like a fullscreen one.
+    P_CONFIG_KEY(borderlessOwnWorkspaceKey, "BorderlessOwnWorkspace")
+
     // ═══════════════════════════════════════════════════════════════════════════
     // Config Keys — Workspaces.Named
     // ═══════════════════════════════════════════════════════════════════════════

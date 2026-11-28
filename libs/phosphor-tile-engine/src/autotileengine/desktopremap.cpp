@@ -85,6 +85,20 @@ void AutotileEngine::applyDesktopRemap(const DesktopRemap& remap)
         return TilingStateKey{key.screenId, -key.desktop, key.activity};
     };
 
+    // An own-workspace hold names the context its window left by desktop
+    // number, so it follows the renumber. A hold whose desktop went has no
+    // place left to give back.
+    for (auto it = m_ownWorkspaceHolds.begin(); it != m_ownWorkspaceHolds.end();) {
+        if (it->origin.desktop > 0 && remap.map(it->origin.desktop) <= 0) {
+            it = m_ownWorkspaceHolds.erase(it);
+            continue;
+        }
+        if (moves(it->origin)) {
+            it->origin = mapped(it->origin);
+        }
+        ++it;
+    }
+
     // The script-state stash is context-keyed and OUTLIVES its state: it is
     // written as the state dies, so a stash with no live state is the normal
     // condition rather than an edge case. migrateStateKey moves a stash only

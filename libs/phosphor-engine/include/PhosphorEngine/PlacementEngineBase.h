@@ -8,6 +8,7 @@
 #include "phosphorengine_export.h"
 
 #include <QList>
+#include <QJsonObject>
 #include <QObject>
 #include <QPointer>
 #include <QRect>
@@ -56,6 +57,40 @@ public:
     {
         Q_UNUSED(windowId)
         return {};
+    }
+
+    /// The workspace controller is about to move @p windowId to a temporary
+    /// workspace of its own (a fullscreen or maximized window, PlasmaZones#1201),
+    /// and will move it back to the desktop it is on now. An engine that places
+    /// the window keeps what it needs to give the window its place back on its
+    /// return to this desktop, and keeps the window's own state (its maximize)
+    /// across the move. The hold ends when the window comes back, when it
+    /// closes, and on dropOwnWorkspaceHold. The default keeps nothing, which is
+    /// right for an engine whose placement already survives a desktop move.
+    virtual void holdForOwnWorkspace(const QString& windowId)
+    {
+        Q_UNUSED(windowId)
+    }
+    /// The own workspace ended without the window coming back (it moved on, or
+    /// its origin went away): forget the hold.
+    virtual void dropOwnWorkspaceHold(const QString& windowId)
+    {
+        Q_UNUSED(windowId)
+    }
+    /// The hold of @p windowId as JSON, for the workspace controller's state
+    /// file, so a daemon restart while the window is away keeps its place.
+    /// Empty when this engine holds nothing for it.
+    virtual QJsonObject ownWorkspaceHoldJson(const QString& windowId) const
+    {
+        Q_UNUSED(windowId)
+        return {};
+    }
+    /// Take back a hold that ownWorkspaceHoldJson wrote in an earlier run.
+    /// Ignored when the object is empty or malformed.
+    virtual void restoreOwnWorkspaceHold(const QString& windowId, const QJsonObject& hold)
+    {
+        Q_UNUSED(windowId)
+        Q_UNUSED(hold)
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -204,6 +239,14 @@ Q_SIGNALS:
     void navigationFeedback(bool success, const QString& action, const QString& reason, const QString& sourceId,
                             const QString& targetId, const QString& screenId);
     void windowFloatingChanged(const QString& windowId, bool floating, const QString& screenId);
+    /// The engine's maximize to edges of @p windowId changed, as the batch it
+    /// is building applies it (the scrolling column's, the tiling override).
+    /// Emitted from inside the layout pass, before the compositor has written
+    /// the maximize bit, so a consumer that acts on it connects queued. The
+    /// workspace controller re-reads the window's state on it: the maximize
+    /// edge KWin reports reaches the daemon before the engine has taken the
+    /// request.
+    void windowMaximizedToEdgesChanged(const QString& windowId, bool maximized);
     void activateWindowRequested(const QString& windowId);
 
     /// Emitted when directional navigation moves a window across virtual

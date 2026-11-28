@@ -306,6 +306,56 @@ bool AutotileEngine::isMaximizedToEdges(const QString& rawWindowId) const
     return m_maximizedToEdgesWindows.contains(canonicalizeForLookup(rawWindowId));
 }
 
+void AutotileEngine::holdForOwnWorkspace(const QString& rawWindowId)
+{
+    const QString windowId = canonicalizeForLookup(rawWindowId);
+    const auto key = m_states.windowKey(windowId);
+    PhosphorTiles::TilingState* state = key ? m_states.stateForKey(*key) : nullptr;
+    if (!state || !state->containsWindow(windowId)) {
+        return;
+    }
+    m_ownWorkspaceHolds.insert(windowId, OwnWorkspaceHold{*key, state->windowOrder()});
+}
+
+void AutotileEngine::dropOwnWorkspaceHold(const QString& rawWindowId)
+{
+    m_ownWorkspaceHolds.remove(canonicalizeForLookup(rawWindowId));
+}
+
+QJsonObject AutotileEngine::ownWorkspaceHoldJson(const QString& rawWindowId) const
+{
+    const auto it = m_ownWorkspaceHolds.constFind(canonicalizeForLookup(rawWindowId));
+    if (it == m_ownWorkspaceHolds.constEnd()) {
+        return {};
+    }
+    QJsonObject obj;
+    // The canonical id: the import runs at start, before the registry knows
+    // the window and could canonicalize it.
+    obj[QLatin1String("id")] = it.key();
+    obj[QLatin1String("screen")] = it->origin.screenId;
+    obj[QLatin1String("desktop")] = it->origin.desktop;
+    obj[QLatin1String("activity")] = it->origin.activity;
+    obj[QLatin1String("order")] = QJsonArray::fromStringList(it->order);
+    return obj;
+}
+
+void AutotileEngine::restoreOwnWorkspaceHold(const QString& rawWindowId, const QJsonObject& hold)
+{
+    const QString screen = hold.value(QLatin1String("screen")).toString();
+    const int desktop = hold.value(QLatin1String("desktop")).toInt(0);
+    if (rawWindowId.isEmpty() || screen.isEmpty() || desktop <= 0) {
+        return;
+    }
+    QStringList order;
+    for (const QJsonValue& v : hold.value(QLatin1String("order")).toArray()) {
+        order.append(v.toString());
+    }
+    const QString id = hold.value(QLatin1String("id")).toString();
+    m_ownWorkspaceHolds.insert(
+        id.isEmpty() ? canonicalizeForLookup(rawWindowId) : id,
+        OwnWorkspaceHold{TilingStateKey{screen, desktop, hold.value(QLatin1String("activity")).toString()}, order});
+}
+
 void AutotileEngine::swapFocusedWithMaster()
 {
     m_navigation->swapFocusedWithMaster();

@@ -442,6 +442,7 @@ void WorkspaceController::start()
     // that is gone survives long enough to be migrated with home stamping.
     // Nothing below is saved: the map is only a candidate until adoption.
     loadStateFile();
+    loadOwnWorkspaces();
     const QStringList storedScreens = m_reconciler.map().screenOrder();
 
     refreshScreenOrder();
@@ -1025,6 +1026,11 @@ void WorkspaceController::onWindowAppeared(const QString& instanceId)
     }
     setCensusRow(instanceId, censusDesktopIds(*meta));
     reuniteWindowWithOwner(instanceId);
+    // A window that opens on an own workspace goes to the origin as a
+    // visitor. A window that maps fullscreen (a game at launch) gets its own
+    // workspace at once.
+    noteOwnWorkspaceVisitor(instanceId);
+    evaluateOwnWorkspace(instanceId);
 }
 
 void WorkspaceController::onWindowDisappeared(const QString& instanceId)
@@ -1032,6 +1038,16 @@ void WorkspaceController::onWindowDisappeared(const QString& instanceId)
     // Per-window bookkeeping outlives the census entry and has to go with it:
     // left behind, it grows without bound for the life of the daemon, and a
     // reused instance id would inherit a cooldown or a spent reunion budget.
+    // An own workspace whose window closed sends its screen back to the
+    // origin. Read before the census row goes, which the leave consults.
+    if (m_ownWorkspaces.contains(instanceId)) {
+        leaveOwnWorkspace(instanceId, /*closed=*/true);
+    }
+    endOwnWorkspaceVisit(instanceId);
+    m_ownWorkspaceEnterPending.remove(instanceId);
+    for (auto it = m_lastActiveByDesktop.begin(); it != m_lastActiveByDesktop.end();) {
+        it = it.value() == instanceId ? m_lastActiveByDesktop.erase(it) : std::next(it);
+    }
     m_lastReunionMs.remove(instanceId);
     m_pendingReunions.remove(instanceId);
     m_reunionAttempts.remove(instanceId);
@@ -1050,8 +1066,12 @@ void WorkspaceController::onWindowDisappeared(const QString& instanceId)
 void WorkspaceController::onMetadataChanged(const QString& instanceId, const PhosphorEngine::WindowMetadata& oldMeta,
                                             const PhosphorEngine::WindowMetadata& newMeta)
 {
-    Q_UNUSED(oldMeta)
     const QStringList newIds = censusDesktopIds(newMeta);
+    // The borderless reading needs the decoration and the frame too.
+    const bool ownStateEdge = oldMeta.isFullscreen != newMeta.isFullscreen || oldMeta.isMaximized != newMeta.isMaximized
+        || censusDesktopIds(oldMeta) != newIds || oldMeta.hasDecoration != newMeta.hasDecoration
+        || oldMeta.width != newMeta.width || oldMeta.height != newMeta.height || oldMeta.positionX != newMeta.positionX
+        || oldMeta.positionY != newMeta.positionY;
     // A watched move verb confirmed by its arrival (watchdog, plan §4.2): the
     // window is on the target now, alone or among the desktops of a window
     // placed on several, or it went sticky and is on every desktop.
@@ -1066,6 +1086,14 @@ void WorkspaceController::onMetadataChanged(const QString& instanceId, const Pho
     // current workspace, which the census change covers, but a push can also
     // carry a new output alone.
     reuniteWindowWithOwner(instanceId);
+    // Own workspaces: the arrival half first, then the state edge, which the
+    // daemon's reader answers from the engines and this push.
+    // Only on the edges that can change the answer: most pushes are caption
+    // ticks.
+    noteOwnWorkspaceCensus(instanceId);
+    if (ownStateEdge) {
+        evaluateOwnWorkspace(instanceId);
+    }
 }
 
 PhosphorWorkspaces::WorkspaceReconciler& WorkspaceController::reconciler()

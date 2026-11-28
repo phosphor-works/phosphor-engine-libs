@@ -392,9 +392,32 @@ PhosphorTiles::TilingState* AutotileEngine::tilingStateForKey(const TilingStateK
         // Create new state for this screen+desktop+activity with parent ownership
         auto* state = new PhosphorTiles::TilingState(key.screenId, this);
 
-        // Initialize with config defaults
-        state->setMasterCount(m_config->masterCount);
-        state->setSplitRatio(m_config->splitRatio);
+        // Initialize with the SCREEN's baseline, not the global one: a state
+        // made for a context out of view (a desktop the screen does not show,
+        // as after a daemon restart) must start where the screen's current
+        // context did. A per-screen override first; then, for a screen pinned
+        // to an algorithm other than the global one, that algorithm's default
+        // ratio, the value applyPerScreenConfig gives the current state on the
+        // same switch; then the global config.
+        const QVariantMap overrides = m_configResolver->perScreenOverrides(key.screenId);
+        qreal splitRatio = m_config->splitRatio;
+        if (const auto ratio = overrides.constFind(QString(PerScreenKeys::SplitRatio)); ratio != overrides.constEnd()) {
+            splitRatio = std::clamp(ratio->toDouble(), PhosphorTiles::AutotileDefaults::MinSplitRatio,
+                                    PhosphorTiles::AutotileDefaults::MaxSplitRatio);
+        } else if (const auto algo = overrides.constFind(QString(PerScreenKeys::Algorithm));
+                   algo != overrides.constEnd() && algo->toString() != m_algorithmId && m_algorithmRegistry) {
+            if (const PhosphorTiles::TilingAlgorithm* pinned = m_algorithmRegistry->algorithm(algo->toString())) {
+                splitRatio = pinned->defaultSplitRatio();
+            }
+        }
+        int masterCount = m_config->masterCount;
+        if (const auto count = overrides.constFind(QString(PerScreenKeys::MasterCount));
+            count != overrides.constEnd()) {
+            masterCount = std::clamp(count->toInt(), PhosphorTiles::AutotileDefaults::MinMasterCount,
+                                     PhosphorTiles::AutotileDefaults::MaxMasterCount);
+        }
+        state->setMasterCount(masterCount);
+        state->setSplitRatio(splitRatio);
         // Recover a bag a teardown rescued for this key, when it was written by
         // the algorithm still in effect. Usually a no-op — the stash is empty
         // unless this key was torn down earlier in the session.

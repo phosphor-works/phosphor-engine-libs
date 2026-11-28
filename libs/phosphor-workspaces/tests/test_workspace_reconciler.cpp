@@ -83,6 +83,7 @@ private Q_SLOTS:
     void setCurrent_refusingAnswerRetiresAndSpendsTheBudget();
     void setCurrent_refusedUserSwitchSpendsNoBudget();
     void reorderCurrentWorkspace_withinSliceAndBeforeTrailingEmpty();
+    void reorderWorkspace_movesAWorkspaceTheScreenDoesNotShow();
     void transferCurrentWorkspace_reownsAndRepairs();
     void transferCurrentWorkspace_neverTheSoleDesktop();
     void hotplug_homeStampAndMigrateBack();
@@ -802,6 +803,43 @@ void TestWorkspaceReconciler::reorderCurrentWorkspace_withinSliceAndBeforeTraili
     rec.onScreenDesktopReport(QStringLiteral("A"), 3); // d5
     QVERIFY(!rec.reorderCurrentWorkspace(QStringLiteral("A"), -1));
     QCOMPARE(createSpy.count(), 0);
+}
+
+void TestWorkspaceReconciler::reorderWorkspace_movesAWorkspaceTheScreenDoesNotShow()
+{
+    // The shape the own-workspace feature uses: a window fills the trailing
+    // empty, a new trailing empty is cut, and the filled one is moved to sit
+    // directly after the workspace the window came from, while the screen
+    // shows some other workspace.
+    WorkspaceReconciler rec;
+    QVERIFY(adoptTwoScreens(rec));
+    rec.onPopulationChanged(id(3), 1);
+    rec.onKwinDesktopCreated(id(5));
+    rec.onDesktopListSettled({id(1), id(3), id(5), id(2), id(4)}); // A: {d1, d3, d5(trailing)}
+    rec.onPopulationChanged(id(1), 1);
+    rec.onPopulationChanged(id(5), 1);
+    rec.onKwinDesktopCreated(id(6));
+    rec.onDesktopListSettled({id(1), id(3), id(5), id(2), id(4), id(6)}); // A: {d1, d3, d5, d6(trailing)}
+    QCOMPARE(sliceIds(rec, QStringLiteral("A")), QStringList({id(1), id(3), id(5), id(6)}));
+    rec.onScreenDesktopReport(QStringLiteral("A"), 2); // d3
+    QSignalSpy createSpy(&rec, &WorkspaceReconciler::requestCreateDesktop);
+    QSignalSpy removeSpy(&rec, &WorkspaceReconciler::requestRemoveDesktop);
+
+    QVERIFY(rec.reorderWorkspace(id(5), 1));
+    QCOMPARE(sliceIds(rec, QStringLiteral("A")), QStringList({id(1), id(5), id(3), id(6)}));
+    // The screen still shows d3.
+    QCOMPARE(rec.currentDesktopIdOf(QStringLiteral("A")), id(3));
+
+    // Refusals: the index it already has, a slot at or behind the trailing
+    // empty, the trailing empty itself, and a desktop no screen owns.
+    QVERIFY(!rec.reorderWorkspace(id(5), 1));
+    QVERIFY(!rec.reorderWorkspace(id(5), 3));
+    QVERIFY(!rec.reorderWorkspace(id(5), -1));
+    QVERIFY(!rec.reorderWorkspace(id(6), 0));
+    QVERIFY(!rec.reorderWorkspace(QStringLiteral("unknown"), 0));
+    QCOMPARE(sliceIds(rec, QStringLiteral("A")), QStringList({id(1), id(5), id(3), id(6)}));
+    QCOMPARE(createSpy.count(), 0);
+    QCOMPARE(removeSpy.count(), 0);
 }
 
 void TestWorkspaceReconciler::transferCurrentWorkspace_reownsAndRepairs()

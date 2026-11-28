@@ -777,9 +777,11 @@ public:
      * and for a window whose stack the algorithm already lays out as a
      * monocle stack: that stack already maximizes every window in it.
      *
-     * The state ends when the window closes, floats, leaves this engine, or
-     * joins a monocle stack. It stays when the window moves to another
-     * desktop or screen that this engine tiles.
+     * The state ends when the window closes, leaves this engine, joins a
+     * monocle stack, or moves to another desktop or screen (the move hands
+     * the window off). A float sets it aside, and the window's return to the
+     * tiles takes it back. A trip to an own workspace keeps it
+     * (holdForOwnWorkspace).
      *
      * @return true when the state changed and a retile was issued
      */
@@ -787,6 +789,16 @@ public:
 
     /// Whether the window is maximized to the edges (see toggleMaximizeToEdges).
     bool isMaximizedToEdges(const QString& windowId) const;
+
+    /// PlacementEngineBase: hold the window's place in its tiling order and its
+    /// maximize to edges across a trip to an own workspace. The window's
+    /// maximize survives the handoff on the way out, so it arrives maximized,
+    /// and its return to the origin context inserts it where it was among the
+    /// windows still there.
+    void holdForOwnWorkspace(const QString& windowId) override;
+    void dropOwnWorkspaceHold(const QString& windowId) override;
+    QJsonObject ownWorkspaceHoldJson(const QString& windowId) const override;
+    void restoreOwnWorkspaceHold(const QString& windowId, const QJsonObject& hold) override;
 
     /**
      * @brief Swap the currently focused window with the master window
@@ -1819,11 +1831,33 @@ private:
     QSet<QString> m_autotileFloatedWindows;
 
     /// Canonical ids of the windows maximized to the edges
-    /// (toggleMaximizeToEdges). Kept per window, not per context, so the
-    /// state follows a window that moves to another desktop or screen. A
-    /// floated window, and every window of a monocle stack, is pruned from it
-    /// in applyTiling.
+    /// (toggleMaximizeToEdges). Kept per window, not per context. A floated
+    /// window moves to m_maximizedBeforeFloat, and every window of a monocle
+    /// stack is pruned from it, in applyTiling.
     QSet<QString> m_maximizedToEdgesWindows;
+    /// The windows the last batch of their screen sent with the
+    /// maximizedToEdges flag, so applyTiling announces each change once
+    /// (windowMaximizedToEdgesChanged).
+    QSet<QString> m_lastAppliedMaximizedToEdges;
+    /// Windows that floated while maximized to the edges. Their maximize comes
+    /// back when they tile again (applyTiling), and goes with them on close,
+    /// a handoff and pruneStaleWindows.
+    QSet<QString> m_maximizedBeforeFloat;
+
+    /// A window away on its own workspace (holdForOwnWorkspace): the context
+    /// it left and that context's window order when it left.
+    struct OwnWorkspaceHold
+    {
+        PhosphorEngine::TilingStateKey origin;
+        QStringList order;
+    };
+    /// Canonical id → hold. Taken back by insertWindow on the origin, and
+    /// dropped on close, on dropOwnWorkspaceHold and by pruneStaleWindows.
+    QHash<QString, OwnWorkspaceHold> m_ownWorkspaceHolds;
+    /// Canonical ids this engine has inserted since it started. The first
+    /// insert of a window reads its saved maximize back (a daemon restart).
+    /// Pruned with the other per-window maps.
+    QSet<QString> m_windowsSeenThisRun;
 
     PhosphorZones::LayoutRegistry* m_layoutManager = nullptr;
     PhosphorEngine::IWindowTrackingService* m_windowTracker = nullptr;

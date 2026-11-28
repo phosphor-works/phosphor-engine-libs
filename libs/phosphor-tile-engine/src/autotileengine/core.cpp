@@ -139,6 +139,22 @@ int AutotileEngine::pruneStaleWindows(const QSet<QString>& aliveWindowIds)
             ++it;
         }
     }
+    for (auto it = m_maximizedBeforeFloat.begin(); it != m_maximizedBeforeFloat.end();) {
+        it = aliveWindowIds.contains(*it) ? std::next(it) : m_maximizedBeforeFloat.erase(it);
+    }
+    for (auto it = m_windowsSeenThisRun.begin(); it != m_windowsSeenThisRun.end();) {
+        it = aliveWindowIds.contains(*it) ? std::next(it) : m_windowsSeenThisRun.erase(it);
+    }
+    for (auto it = m_ownWorkspaceHolds.begin(); it != m_ownWorkspaceHolds.end();) {
+        it = aliveWindowIds.contains(it.key()) ? std::next(it) : m_ownWorkspaceHolds.erase(it);
+    }
+    for (auto it = m_lastAppliedMaximizedToEdges.begin(); it != m_lastAppliedMaximizedToEdges.end();) {
+        if (!aliveWindowIds.contains(*it)) {
+            it = m_lastAppliedMaximizedToEdges.erase(it);
+        } else {
+            ++it;
+        }
+    }
     // Same independent keying for the last-applied tile rects.
     for (auto it = m_lastAppliedTileRect.begin(); it != m_lastAppliedTileRect.end();) {
         if (!aliveWindowIds.contains(it.key())) {

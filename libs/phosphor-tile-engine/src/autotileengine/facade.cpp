@@ -441,6 +441,9 @@ AutotileEngine::capturePlacementForKey(const QString& windowId, const PhosphorEn
         // path takes floating slots only, and a tiled slot's job is to stand
         // as the exact-final evidence that the window closed tiled.
         slot.order = state->windowOrder().indexOf(wid);
+        // Read back once after a daemon restart (insertWindow), so a tile the
+        // user maximized keeps its maximize across it.
+        slot.maximizedToEdges = m_maximizedToEdgesWindows.contains(wid);
     }
     p.engines.insert(engineId(), slot);
     return p;

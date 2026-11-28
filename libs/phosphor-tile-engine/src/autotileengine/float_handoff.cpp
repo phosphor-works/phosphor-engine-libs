@@ -523,8 +523,14 @@ void AutotileEngine::handoffRelease(const QString& windowId)
     m_states.removeWindow(canonical);
     // The maximize is this engine's state. The receiving engine has its own
     // (scrolling keeps one on the column), so the window arrives unmaximized
-    // there, as every other per-mode state does.
-    m_maximizedToEdgesWindows.remove(canonical);
+    // there, as every other per-mode state does. A window on its way to an own
+    // workspace keeps it: it is to arrive maximized, and an own workspace runs
+    // this engine whenever its origin does.
+    if (!m_ownWorkspaceHolds.contains(canonical)) {
+        m_maximizedToEdgesWindows.remove(canonical);
+    }
+    m_lastAppliedMaximizedToEdges.remove(canonical);
+    m_maximizedBeforeFloat.remove(canonical);
     // The durable slot goes with the tracking (the scroll twin carries the
     // same clear): a released window is one this engine knowingly gave up,
     // and a stale autotile TILED slot left in the unified record is not

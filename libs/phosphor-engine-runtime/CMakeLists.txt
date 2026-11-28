@@ -317,6 +317,7 @@ set(phosphorengineruntime_SRCS
     src/runtime/controllers/unifiedlayoutcontroller.cpp
     src/runtime/controllers/workspacecontroller.cpp
     src/runtime/controllers/workspacecontroller_verbs.cpp
+    src/runtime/controllers/workspacecontroller_own.cpp
     src/runtime/controllers/zoneselectorcontroller.cpp
     src/runtime/controllers/zoneselectorcontroller.h
     src/runtime/dragresolver/drag.cpp

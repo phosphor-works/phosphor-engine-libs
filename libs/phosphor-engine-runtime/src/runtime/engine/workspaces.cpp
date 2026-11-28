@@ -35,6 +35,8 @@
 #include <PhosphorIdentity/VirtualScreenId.h>
 #include <PhosphorPlacement/WindowTrackingService.h>
 #include <PhosphorScrollEngine/ScrollEngine.h>
+#include <PhosphorTileEngine/AutotileEngine.h>
+#include <PhosphorIdentity/WindowId.h>
 #include <PhosphorScreens/ScreenIdentity.h>
 #include <PhosphorWorkspaces/VirtualDesktopManager.h>
 #include <PhosphorWorkspaces/WorkspaceReconciler.h>
@@ -672,6 +674,114 @@ void EngineRuntime::initializeWorkspaces()
             m_windowTracker->stashScrollStripsForWorkspaceMove(windowIds, targetScreenId, desktop);
         }
     });
+
+    // Own workspaces (PlasmaZones#1201). The state reader answers with the
+    // USER's state: a strip's windowed fullscreen is the engine's, and so is a
+    // monocle stack's maximize, which the tile engine never reports as its
+    // maximize to edges. A tiled window's maximize is its engine's; a window
+    // no engine tiles (floating, or on a snapping screen) has KWin's.
+    controller->setOwnWorkspaceStateProvider([this](const QString& instanceId) {
+        WorkspaceController::OwnWorkspaceWindowState state;
+        const auto meta = m_windowRegistry ? m_windowRegistry->metadata(instanceId) : std::nullopt;
+        if (!meta) {
+            return state;
+        }
+        auto* scroll = qobject_cast<PhosphorScrollEngine::ScrollEngine*>(m_scrollEngine.get());
+        auto* tile = qobject_cast<PhosphorTileEngine::AutotileEngine*>(m_autotileEngine.get());
+        const bool scrollTiled = scroll && scroll->isWindowTiled(instanceId);
+        const bool tileTiled = tile && tile->isWindowTiled(instanceId);
+        state.fullscreen =
+            meta->isFullscreen.value_or(false) && !(scrollTiled && scroll->isWindowedFullscreen(instanceId));
+        // Borderless: no decoration and the frame exactly one screen, the rule
+        // kde-fullscreen-spaces uses for borderless games. Not for a window
+        // that is fullscreen already, which the fullscreen arm covers.
+        if (!meta->isFullscreen.value_or(false) && !meta->hasDecoration.value_or(true) && meta->width && meta->height
+            && meta->positionX && meta->positionY && m_screenManager) {
+            const QRect frame(*meta->positionX, *meta->positionY, *meta->width, *meta->height);
+            for (const auto& screen : m_screenManager->screens()) {
+                if (screen.geometry == frame) {
+                    state.borderless = true;
+                    break;
+                }
+            }
+        }
+        if (scrollTiled) {
+            state.maximized = scroll->isMaximizedToEdges(instanceId);
+        } else if (tileTiled) {
+            state.maximized = tile->isMaximizedToEdges(instanceId);
+        } else {
+            state.maximized = meta->isMaximized.value_or(false);
+        }
+        return state;
+    });
+    controller->setOwnWorkspaceHoldHandler([this](const QString& instanceId, bool hold) {
+        for (PhosphorEngine::PlacementEngineBase* engine :
+             {m_scrollEngine.get(), m_autotileEngine.get(), m_snapEngine.get()}) {
+            if (!engine) {
+                continue;
+            }
+            if (hold) {
+                engine->holdForOwnWorkspace(instanceId);
+            } else {
+                engine->dropOwnWorkspaceHold(instanceId);
+            }
+        }
+    });
+    controller->setOwnWorkspaceHoldCodec(
+        [this](const QString& instanceId) {
+            QJsonObject holds;
+            for (PhosphorEngine::PlacementEngineBase* engine :
+                 {m_scrollEngine.get(), m_autotileEngine.get(), m_snapEngine.get()}) {
+                if (engine) {
+                    const QJsonObject hold = engine->ownWorkspaceHoldJson(instanceId);
+                    if (!hold.isEmpty()) {
+                        holds[engine->engineId()] = hold;
+                    }
+                }
+            }
+            return holds;
+        },
+        [this](const QString& instanceId, const QJsonObject& holds) {
+            for (PhosphorEngine::PlacementEngineBase* engine :
+                 {m_scrollEngine.get(), m_autotileEngine.get(), m_snapEngine.get()}) {
+                if (engine && holds.contains(engine->engineId())) {
+                    engine->restoreOwnWorkspaceHold(instanceId, holds.value(engine->engineId()).toObject());
+                }
+            }
+        });
+    const auto applyOwnWorkspaceOptions = [this, controller]() {
+        controller->setOwnWorkspaceOptions(m_settings->workspacesFullscreenOwnWorkspace(),
+                                           m_settings->workspacesMaximizedOwnWorkspace(),
+                                           m_settings->workspacesBorderlessOwnWorkspace());
+    };
+    applyOwnWorkspaceOptions();
+    connect(m_settings.get(), &Settings::workspacesFullscreenOwnWorkspaceChanged, wiring, applyOwnWorkspaceOptions);
+    connect(m_settings.get(), &Settings::workspacesMaximizedOwnWorkspaceChanged, wiring, applyOwnWorkspaceOptions);
+    connect(m_settings.get(), &Settings::workspacesBorderlessOwnWorkspaceChanged, wiring, applyOwnWorkspaceOptions);
+    // The engines take a maximize request after KWin's maximize edge reached
+    // the daemon, so the controller reads the window again when an engine's
+    // own maximize changes. Queued: the engines emit from inside a layout
+    // pass, and the controller's answer is a move that hands the window off.
+    for (PhosphorEngine::PlacementEngineBase* engine : {m_scrollEngine.get(), m_autotileEngine.get()}) {
+        if (engine) {
+            connect(
+                engine, &PhosphorEngine::PlacementEngineBase::windowMaximizedToEdgesChanged, wiring,
+                [controller](const QString& windowId, bool) {
+                    controller->noteWindowStateChanged(PhosphorIdentity::WindowId::extractInstanceId(windowId));
+                },
+                Qt::QueuedConnection);
+        }
+    }
+    if (m_windowTracker) {
+        connect(m_windowTracker, &WindowTracker::activeWindowChanged, wiring, [controller](const QString& windowId) {
+            controller->noteWindowActivated(PhosphorIdentity::WindowId::extractInstanceId(windowId));
+        });
+        connect(controller, &WorkspaceController::windowActivationRequested, wiring, [this](const QString& instanceId) {
+            if (m_windowTracker) {
+                m_windowTracker->activateWindow(instanceId);
+            }
+        });
+    }
 
     controller->start();
     m_shortcutManager->setWorkspaceFamilyActive(true);

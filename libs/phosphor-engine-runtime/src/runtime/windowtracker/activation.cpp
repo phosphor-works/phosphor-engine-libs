@@ -161,6 +161,7 @@ void WindowTracker::windowActivated(const QString& windowId, const QString& scre
 
     // Track the active window for daemon-driven navigation (move/focus/swap/etc.)
     m_lastActiveWindowId = shadowWindowId(windowId);
+    Q_EMIT activeWindowChanged(windowId);
     // A new activation supersedes both held focus reports: an earlier held
     // activation, and a held crossing report of the window focused before.
     // Each has its own key, so activeWindowScreenChanged can tell a held

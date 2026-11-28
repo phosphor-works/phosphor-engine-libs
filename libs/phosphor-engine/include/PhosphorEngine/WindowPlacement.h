@@ -61,10 +61,16 @@ struct EngineSlot
     /// `zoneIds` stays populated with the current context's zones, so every
     /// reader that predates this field keeps working unchanged.
     QHash<int, QStringList> zonesByDesktop;
+    /// autotile slot — the window is maximized to the edges
+    /// (AutotileEngine::toggleMaximizeToEdges), so a daemon restart gives it
+    /// its maximize back with its tile. False for every other engine, which
+    /// keeps its own (scrolling saves the column's flag with its strip).
+    bool maximizedToEdges = false;
 
     bool operator==(const EngineSlot& o) const
     {
-        return state == o.state && zoneIds == o.zoneIds && order == o.order && zonesByDesktop == o.zonesByDesktop;
+        return state == o.state && zoneIds == o.zoneIds && order == o.order && zonesByDesktop == o.zonesByDesktop
+            && maximizedToEdges == o.maximizedToEdges;
     }
     bool operator!=(const EngineSlot& o) const
     {
@@ -323,6 +329,9 @@ struct WindowPlacement
             if (s.order >= 0) {
                 so[QLatin1String("order")] = s.order;
             }
+            if (s.maximizedToEdges) {
+                so[QLatin1String("maximizedToEdges")] = true;
+            }
             if (!s.zonesByDesktop.isEmpty()) {
                 // Desktop number as the key, stringified because JSON objects
                 // take no integer keys. Only written when the window actually
@@ -398,6 +407,7 @@ struct WindowPlacement
                 }
             }
             s.order = so.value(QLatin1String("order")).toInt(-1);
+            s.maximizedToEdges = so.value(QLatin1String("maximizedToEdges")).toBool(false);
             const QJsonObject byDesktop = so.value(QLatin1String("zonesByDesktop")).toObject();
             for (auto d = byDesktop.constBegin(); d != byDesktop.constEnd(); ++d) {
                 bool ok = false;

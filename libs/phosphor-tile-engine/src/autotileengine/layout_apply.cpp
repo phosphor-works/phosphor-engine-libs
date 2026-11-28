@@ -466,10 +466,22 @@ void AutotileEngine::applyTiling(const QString& screenId)
     // (by the user, a rule or the overflow pass above) is no tile, so its
     // maximize ends, and a monocle stack already maximizes each of its
     // windows through the monocle flag, which must stay the bit's only owner.
-    if (!m_maximizedToEdgesWindows.isEmpty()) {
-        for (const QString& wid : state->floatingWindows()) {
-            m_maximizedToEdgesWindows.remove(wid);
+    // A float sets the maximize aside rather than ending it, and the window's
+    // return to the tiles takes it back, as a scrolling column's float
+    // record carries its flag both ways.
+    for (const QString& wid : state->floatingWindows()) {
+        if (m_maximizedToEdgesWindows.remove(wid)) {
+            m_maximizedBeforeFloat.insert(wid);
         }
+    }
+    if (!m_maximizedBeforeFloat.isEmpty()) {
+        for (int i = 0; i < tileCount; ++i) {
+            if (m_maximizedBeforeFloat.remove(windows[i]) && !useMonocleMode) {
+                m_maximizedToEdgesWindows.insert(windows[i]);
+            }
+        }
+    }
+    if (!m_maximizedToEdgesWindows.isEmpty()) {
         if (useMonocleMode) {
             for (int i = 0; i < tileCount; ++i) {
                 m_maximizedToEdgesWindows.remove(windows[i]);
@@ -533,6 +545,14 @@ void AutotileEngine::applyTiling(const QString& screenId)
         // because the prune above keeps the two sets apart.
         if (maximizedToEdges) {
             obj[QLatin1String("maximizedToEdges")] = true;
+        }
+        if (m_lastAppliedMaximizedToEdges.contains(windows[i]) != maximizedToEdges) {
+            if (maximizedToEdges) {
+                m_lastAppliedMaximizedToEdges.insert(windows[i]);
+            } else {
+                m_lastAppliedMaximizedToEdges.remove(windows[i]);
+            }
+            Q_EMIT windowMaximizedToEdgesChanged(windows[i], maximizedToEdges);
         }
         if (!stacking.isEmpty()) {
             obj[QLatin1String("stacking")] = stacking;

@@ -193,6 +193,7 @@ private Q_SLOTS:
     void aLateArrivalDoesNotRewindAUserTabSwitch();
     void aBurstStillLandsOnTheStashedTabWhenItArrivesLast();
     void aLateArrivalDoesNotRewindAUserHeightOwnerChange();
+    void anOwnWorkspaceTripKeepsTheMaximizeAndTheSlot();
 };
 
 // The maximize-to-edges flag lives on the COLUMN and must not travel with an
@@ -1142,6 +1143,54 @@ void TestScrollEngineMaximize::aLateArrivalDoesNotRewindAUserHeightOwnerChange()
     QCoreApplication::processEvents();
     QCOMPARE(columnCountOn(engine), 1);
     QCOMPARE(heightOwnerOf(engine, QStringLiteral("app|t1")), QStringLiteral("app|t2"));
+}
+
+// An own-workspace trip (PlasmaZones#1201). The hold keeps what the handoff
+// on the way out drops: the window arrives on its own workspace as a column of
+// its own that is still maximized to the edges, and on its return to the
+// origin it is a column right of the one that was on its left again, not a
+// column beside whatever has focus.
+void TestScrollEngineMaximize::anOwnWorkspaceTripKeepsTheMaximizeAndTheSlot()
+{
+    QObject owner;
+    ScrollEngine* engine = makeProviderEngine(&owner, {QStringLiteral("S1")});
+    engine->setCurrentDesktopForScreen(QStringLiteral("S1"), 1);
+    engine->windowOpened(QStringLiteral("app|a"), QStringLiteral("S1"), 0, 0);
+    engine->windowOpened(QStringLiteral("app|b"), QStringLiteral("S1"), 0, 0);
+    engine->windowOpened(QStringLiteral("app|c"), QStringLiteral("S1"), 0, 0);
+    QCoreApplication::processEvents();
+    ScrollState* origin = stateFor(engine, QStringLiteral("S1"));
+    QVERIFY(origin);
+    QCOMPARE(origin->strip().columnOfWindow(QStringLiteral("app|b")), 1);
+
+    QVERIFY(engine->toggleMaximizeToEdges(QStringLiteral("S1"), QStringLiteral("app|b")));
+    QVERIFY(engine->isMaximizedToEdges(QStringLiteral("app|b")));
+    engine->holdForOwnWorkspace(QStringLiteral("app|b"));
+    engine->handoffRelease(QStringLiteral("app|b"));
+    QCOMPARE(origin->strip().columnOfWindow(QStringLiteral("app|b")), -1);
+
+    // On its own workspace: a column of its own, still maximized.
+    engine->setCurrentDesktopForScreen(QStringLiteral("S1"), 2);
+    engine->windowOpened(QStringLiteral("app|b"), QStringLiteral("S1"), 0, 0);
+    QCoreApplication::processEvents();
+    QVERIFY(engine->isMaximizedToEdges(QStringLiteral("app|b")));
+    QCOMPARE(columnCountOn(engine), 1);
+
+    // The user restores it there, and it goes back.
+    QVERIFY(engine->toggleMaximizeToEdges(QStringLiteral("S1"), QStringLiteral("app|b")));
+    engine->handoffRelease(QStringLiteral("app|b"));
+    engine->setCurrentDesktopForScreen(QStringLiteral("S1"), 1);
+    // Focus elsewhere, so a plain next-to-focus insert would land in the
+    // wrong slot and fail the order check below.
+    engine->windowFocused(QStringLiteral("app|c"), QStringLiteral("S1"));
+    engine->windowOpened(QStringLiteral("app|b"), QStringLiteral("S1"), 0, 0);
+    QCoreApplication::processEvents();
+    ScrollState* back = stateFor(engine, QStringLiteral("S1"));
+    QVERIFY(back);
+    QCOMPARE(back->strip().columnOfWindow(QStringLiteral("app|a")), 0);
+    QCOMPARE(back->strip().columnOfWindow(QStringLiteral("app|b")), 1);
+    QCOMPARE(back->strip().columnOfWindow(QStringLiteral("app|c")), 2);
+    QVERIFY(!engine->isMaximizedToEdges(QStringLiteral("app|b")));
 }
 
 QTEST_GUILESS_MAIN(TestScrollEngineMaximize)

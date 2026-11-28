@@ -47,6 +47,7 @@ phosphorengineruntime_add_test(test_settings_model)
 phosphorengineruntime_add_test(test_core_helpers)
 phosphorengineruntime_add_test(test_drag_activation)
 phosphorengineruntime_add_test(test_adopt_previous_locations)
+phosphorengineruntime_add_test(test_own_workspace_decisions)
 
 # The bundled data in data/ at this tree's root: every layout and scrolling
 # template against its schema and parser, every algorithm through the loader.

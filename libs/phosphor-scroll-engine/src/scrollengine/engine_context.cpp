@@ -37,6 +37,9 @@ int ScrollEngine::pruneStaleWindows(const QSet<QString>& aliveWindowIds)
             ++it;
         }
     }
+    for (auto it = m_ownWorkspaceHolds.begin(); it != m_ownWorkspaceHolds.end();) {
+        it = aliveWindowIds.contains(it.key()) ? std::next(it) : m_ownWorkspaceHolds.erase(it);
+    }
     // The emit-gate memory for the windowed-fullscreen flag ages out the same
     // way; a stale true for a re-used id would only force one redundant emit,
     // but there is no reason to keep dead ids around.

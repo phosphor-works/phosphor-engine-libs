@@ -326,6 +326,13 @@ public:
     /// map order only: KWin's global order is not rewritten. The trailing
     /// empty never moves, and nothing moves behind it.
     bool reorderCurrentWorkspace(const QString& screenId, int delta);
+    /// Move the workspace @p desktopId to 0-based @p sliceIndex of its owner's
+    /// slice, by the rules of reorderCurrentWorkspace: the map order only, the
+    /// trailing empty never moves, and nothing moves behind it. The workspace
+    /// need not be the one its screen shows. Refused (false) for a desktop no
+    /// screen owns, for the trailing empty, for an index outside the slots
+    /// before the trailing empty, and for the index it already has.
+    bool reorderWorkspace(const QString& desktopId, int sliceIndex);
     /// Re-own the screen's current workspace to `targetScreenId`, inserted
     /// before that screen's trailing empty. Window relocation is the
     /// controller's job (§4.2); this is the map half. The source switches to

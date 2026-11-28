@@ -795,6 +795,8 @@ public:
     /// windows still there.
     void holdForOwnWorkspace(const QString& windowId) override;
     void dropOwnWorkspaceHold(const QString& windowId) override;
+    QJsonObject ownWorkspaceHoldJson(const QString& windowId) const override;
+    void restoreOwnWorkspaceHold(const QString& windowId, const QJsonObject& hold) override;
 
     /**
      * @brief Swap the currently focused window with the master window
@@ -1847,6 +1849,10 @@ private:
     /// Canonical id → hold. Taken back by insertWindow on the origin, and
     /// dropped on close, on dropOwnWorkspaceHold and by pruneStaleWindows.
     QHash<QString, OwnWorkspaceHold> m_ownWorkspaceHolds;
+    /// Canonical ids this engine has inserted since it started. The first
+    /// insert of a window reads its saved maximize back (a daemon restart).
+    /// Pruned with the other per-window maps.
+    QSet<QString> m_windowsSeenThisRun;
 
     PhosphorZones::LayoutRegistry* m_layoutManager = nullptr;
     PhosphorEngine::IWindowTrackingService* m_windowTracker = nullptr;

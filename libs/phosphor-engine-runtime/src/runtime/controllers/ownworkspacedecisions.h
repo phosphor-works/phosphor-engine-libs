@@ -17,19 +17,46 @@ enum class Trigger {
     None,
     Fullscreen,
     Maximized,
+    Borderless,
 };
 
-/// The trigger for a window's state under the two options. @p fullscreen is
-/// the window's own fullscreen (not a windowed fullscreen the scrolling strip
-/// imposes), and @p maximized is the user's own maximize (not a monocle
-/// stack's).
-inline constexpr Trigger triggerFor(bool fullscreenOption, bool maximizedOption, bool fullscreen, bool maximized)
+/// The three options, as the controller holds them.
+struct Options
 {
-    if (fullscreenOption && fullscreen) {
+    bool fullscreen = false;
+    bool maximized = false;
+    bool borderless = false;
+
+    static constexpr Options all()
+    {
+        return Options{true, true, true};
+    }
+};
+
+/// A window's state as the options read it.
+struct State
+{
+    /// The window's own fullscreen, not a windowed fullscreen the scrolling
+    /// strip imposes.
+    bool fullscreen = false;
+    /// The user's own maximize, not a monocle stack's.
+    bool maximized = false;
+    /// No decoration, and the frame is exactly its screen's geometry.
+    bool borderless = false;
+};
+
+/// The trigger for a window's state under the options, in this order:
+/// fullscreen, maximized, borderless.
+inline constexpr Trigger triggerFor(const Options& options, const State& state)
+{
+    if (options.fullscreen && state.fullscreen) {
         return Trigger::Fullscreen;
     }
-    if (maximizedOption && maximized) {
+    if (options.maximized && state.maximized) {
         return Trigger::Maximized;
+    }
+    if (options.borderless && state.borderless) {
+        return Trigger::Borderless;
     }
     return Trigger::None;
 }

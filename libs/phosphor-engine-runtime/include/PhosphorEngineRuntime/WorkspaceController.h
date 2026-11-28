@@ -10,6 +10,7 @@
 
 #include <QElapsedTimer>
 #include <QHash>
+#include <QJsonObject>
 #include <QList>
 #include <QObject>
 #include <QSet>
@@ -218,6 +219,9 @@ public:
     {
         bool fullscreen = false;
         bool maximized = false;
+        /// No decoration, and the frame is exactly its screen's geometry (a
+        /// borderless game).
+        bool borderless = false;
     };
     /// Inject the state reader. The daemon backs it with the engines' answers
     /// and the window registry. Unset, the feature never moves a window.
@@ -228,10 +232,16 @@ public:
     /// The return itself needs no call, since the engine takes its hold back
     /// on the arrival.
     void setOwnWorkspaceHoldHandler(std::function<void(const QString& instanceId, bool hold)> handler);
+    /// Inject the engines' hold JSON (PlacementEngineBase::ownWorkspaceHoldJson
+    /// and restoreOwnWorkspaceHold), so the records in the state file keep the
+    /// window's place across a daemon restart. The export answers one object
+    /// keyed by engine id, and the import takes the same object back.
+    void setOwnWorkspaceHoldCodec(std::function<QJsonObject(const QString& instanceId)> exportHolds,
+                                  std::function<void(const QString& instanceId, const QJsonObject& holds)> importHolds);
     /// The two options (Workspaces.Behavior FullscreenOwnWorkspace and
     /// MaximizedOwnWorkspace). Turning one off ends no own workspace that is
     /// already open: each one ends on its window's own state edge or close.
-    void setOwnWorkspaceOptions(bool fullscreen, bool maximized);
+    void setOwnWorkspaceOptions(bool fullscreen, bool maximized, bool borderless);
     /// The compositor activated @p instanceId. Recorded against the window's
     /// desktop, so the end of an own workspace can focus the window that was
     /// last active on the origin.
@@ -365,10 +375,38 @@ private:
     int othersOnDesktop(const QString& desktopId, const QString& exceptInstanceId) const;
     std::function<OwnWorkspaceWindowState(const QString&)> m_ownWorkspaceState;
     std::function<void(const QString&, bool)> m_ownWorkspaceHold;
+    std::function<QJsonObject(const QString&)> m_ownWorkspaceHoldExport;
+    std::function<void(const QString&, const QJsonObject&)> m_ownWorkspaceHoldImport;
+    /// The records with their windows' holds, in own-workspaces.json beside
+    /// the map's state file, written on every record change and read at
+    /// start. A record whose window does not come back is dropped once the
+    /// compositor has had time to announce its windows.
+    static constexpr int OwnWorkspacePruneDelayMs = 20000;
+    static QString ownWorkspacesFilePath();
+    void saveOwnWorkspaces() const;
+    void loadOwnWorkspaces();
+    void pruneAbsentOwnWorkspaces();
     bool m_ownFullscreen = false;
     bool m_ownMaximized = false;
+    bool m_ownBorderless = false;
     QHash<QString, OwnWorkspace> m_ownWorkspaces; ///< instanceId → record
     QSet<QString> m_ownWorkspaceEnterPending; ///< an enter queued behind structural churn
+    /// A window that opened on an own workspace while its owner had it (a
+    /// launcher, a chat window opened over a game). It is moved to the origin
+    /// and the screen follows it; its close brings the screen back to the own
+    /// workspace and the owner (kde-fullscreen-spaces#3). instanceId → visit.
+    struct OwnWorkspaceVisitor
+    {
+        QString screenId;
+        QString originDesktopId;
+        QString ownDesktopId;
+        QString owner;
+    };
+    QHash<QString, OwnWorkspaceVisitor> m_ownWorkspaceVisitors;
+    /// A new window on an own workspace becomes a visitor (see above).
+    void noteOwnWorkspaceVisitor(const QString& instanceId);
+    /// A visitor closed: the screen goes back to the own workspace it left.
+    void endOwnWorkspaceVisit(const QString& instanceId);
     QHash<QString, QString> m_lastActiveByDesktop; ///< desktopId → instanceId
 
     PhosphorWorkspaces::VirtualDesktopManager* m_vdm;

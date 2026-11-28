@@ -20,7 +20,17 @@
 #include <PhosphorEngine/WindowRegistry.h>
 #include <PhosphorWorkspaces/VirtualDesktopManager.h>
 
+#include <PhosphorPaths/SuiteDirectories.h>
+
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLoggingCategory>
+#include <QSaveFile>
+#include <QTimer>
 
 Q_DECLARE_LOGGING_CATEGORY(lcWorkspaceCtl)
 
@@ -39,13 +49,119 @@ void WorkspaceController::setOwnWorkspaceHoldHandler(std::function<void(const QS
     m_ownWorkspaceHold = std::move(handler);
 }
 
-void WorkspaceController::setOwnWorkspaceOptions(bool fullscreen, bool maximized)
+void WorkspaceController::setOwnWorkspaceHoldCodec(
+    std::function<QJsonObject(const QString& instanceId)> exportHolds,
+    std::function<void(const QString& instanceId, const QJsonObject& holds)> importHolds)
 {
-    if (m_ownFullscreen == fullscreen && m_ownMaximized == maximized) {
+    m_ownWorkspaceHoldExport = std::move(exportHolds);
+    m_ownWorkspaceHoldImport = std::move(importHolds);
+}
+
+QString WorkspaceController::ownWorkspacesFilePath()
+{
+    return PhosphorPaths::appStateDir() + QStringLiteral("/own-workspaces.json");
+}
+
+void WorkspaceController::saveOwnWorkspaces() const
+{
+    QJsonArray records;
+    for (auto it = m_ownWorkspaces.constBegin(); it != m_ownWorkspaces.constEnd(); ++it) {
+        QJsonObject obj;
+        obj[QLatin1String("window")] = it.key();
+        obj[QLatin1String("screen")] = it->screenId;
+        obj[QLatin1String("origin")] = it->originDesktopId;
+        obj[QLatin1String("own")] = it->ownDesktopId;
+        obj[QLatin1String("lastActive")] = it->originLastActive;
+        obj[QLatin1String("arrived")] = it->arrived;
+        if (m_ownWorkspaceHoldExport) {
+            obj[QLatin1String("holds")] = m_ownWorkspaceHoldExport(it.key());
+        }
+        records.append(obj);
+    }
+    const QString path = ownWorkspacesFilePath();
+    if (records.isEmpty()) {
+        QFile::remove(path);
+        return;
+    }
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly)) {
+        qCWarning(lcWorkspaceCtl) << "cannot write own-workspace state file" << path;
+        return;
+    }
+    QJsonObject root;
+    root[QLatin1String("version")] = 1;
+    root[QLatin1String("records")] = records;
+    file.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
+    if (!file.commit()) {
+        qCWarning(lcWorkspaceCtl) << "could not commit own-workspace state file" << path << ":" << file.errorString();
+    }
+}
+
+void WorkspaceController::loadOwnWorkspaces()
+{
+    QFile file(ownWorkspacesFilePath());
+    if (!file.open(QIODevice::ReadOnly)) {
+        return;
+    }
+    const QJsonObject root = QJsonDocument::fromJson(file.readAll()).object();
+    if (root.value(QLatin1String("version")).toInt() != 1) {
+        return;
+    }
+    for (const QJsonValue& v : root.value(QLatin1String("records")).toArray()) {
+        const QJsonObject obj = v.toObject();
+        const QString window = obj.value(QLatin1String("window")).toString();
+        OwnWorkspace record;
+        record.screenId = obj.value(QLatin1String("screen")).toString();
+        record.originDesktopId = obj.value(QLatin1String("origin")).toString();
+        record.ownDesktopId = obj.value(QLatin1String("own")).toString();
+        record.originLastActive = obj.value(QLatin1String("lastActive")).toString();
+        record.arrived = obj.value(QLatin1String("arrived")).toBool(false);
+        if (window.isEmpty() || record.screenId.isEmpty() || record.originDesktopId.isEmpty()
+            || record.ownDesktopId.isEmpty()) {
+            continue;
+        }
+        m_ownWorkspaces.insert(window, record);
+        if (m_ownWorkspaceHoldImport) {
+            m_ownWorkspaceHoldImport(window, obj.value(QLatin1String("holds")).toObject());
+        }
+    }
+    if (!m_ownWorkspaces.isEmpty()) {
+        qCInfo(lcWorkspaceCtl) << "restored" << m_ownWorkspaces.size() << "own workspace(s) from the last run";
+        // The compositor re-announces its windows after the daemon is up. A
+        // record whose window has not come back by then belongs to a window
+        // that closed while the daemon was down.
+        QTimer::singleShot(OwnWorkspacePruneDelayMs, this, &WorkspaceController::pruneAbsentOwnWorkspaces);
+    }
+}
+
+void WorkspaceController::pruneAbsentOwnWorkspaces()
+{
+    bool changed = false;
+    for (auto it = m_ownWorkspaces.begin(); it != m_ownWorkspaces.end();) {
+        if (m_registry->metadata(it.key())) {
+            ++it;
+            continue;
+        }
+        if (m_ownWorkspaceHold) {
+            m_ownWorkspaceHold(it.key(), false);
+        }
+        it = m_ownWorkspaces.erase(it);
+        changed = true;
+    }
+    if (changed) {
+        saveOwnWorkspaces();
+    }
+}
+
+void WorkspaceController::setOwnWorkspaceOptions(bool fullscreen, bool maximized, bool borderless)
+{
+    if (m_ownFullscreen == fullscreen && m_ownMaximized == maximized && m_ownBorderless == borderless) {
         return;
     }
     m_ownFullscreen = fullscreen;
     m_ownMaximized = maximized;
+    m_ownBorderless = borderless;
     // An option turned on applies to a window already in the state the next
     // time its state changes, not at once: a switch the user did not cause
     // would land under them. An option turned off ends nothing either.
@@ -89,9 +205,13 @@ void WorkspaceController::evaluateOwnWorkspace(const QString& instanceId)
         return;
     }
     const OwnWorkspaceWindowState state = m_ownWorkspaceState(instanceId);
+    // A window that holds an own workspace keeps it while any of the states
+    // holds (the options are read as all on for it).
+    const OWD::Options options = m_ownWorkspaces.contains(instanceId)
+        ? OWD::Options::all()
+        : OWD::Options{m_ownFullscreen, m_ownMaximized, m_ownBorderless};
     const OWD::Trigger trigger =
-        OWD::triggerFor(m_ownFullscreen || m_ownWorkspaces.contains(instanceId),
-                        m_ownMaximized || m_ownWorkspaces.contains(instanceId), state.fullscreen, state.maximized);
+        OWD::triggerFor(options, OWD::State{state.fullscreen, state.maximized, state.borderless});
     if (m_ownWorkspaces.contains(instanceId)) {
         // A window that holds an own workspace keeps it while either state
         // holds (the options are read as on for it), so leaving fullscreen
@@ -120,7 +240,9 @@ void WorkspaceController::enterOwnWorkspace(const QString& instanceId)
             return;
         }
         const OwnWorkspaceWindowState state = m_ownWorkspaceState(instanceId);
-        if (OWD::triggerFor(m_ownFullscreen, m_ownMaximized, state.fullscreen, state.maximized) == OWD::Trigger::None) {
+        if (OWD::triggerFor(OWD::Options{m_ownFullscreen, m_ownMaximized, m_ownBorderless},
+                            OWD::State{state.fullscreen, state.maximized, state.borderless})
+            == OWD::Trigger::None) {
             return;
         }
         const QStringList desktops = m_windowCensusDesktopIds.value(instanceId);
@@ -159,12 +281,14 @@ void WorkspaceController::enterOwnWorkspace(const QString& instanceId)
         const QString lastActive = m_lastActiveByDesktop.value(origin);
         record.originLastActive = lastActive == instanceId ? QString() : lastActive;
         m_ownWorkspaces.insert(instanceId, record);
+        saveOwnWorkspaces();
         qCInfo(lcWorkspaceCtl) << "opening own workspace" << trailing << "for window" << instanceId << "from" << origin
                                << "on" << screenId;
         // The engine keeps the window's place and its maximize first, since
         // the move's handoff releases both.
         if (m_ownWorkspaceHold) {
             m_ownWorkspaceHold(instanceId, true);
+            saveOwnWorkspaces();
         }
         // Not the subject of a verb, so the move leaves the window's
         // fullscreen alone, and the desktop half only: the own workspace is on
@@ -187,6 +311,7 @@ void WorkspaceController::noteOwnWorkspaceCensus(const QString& instanceId)
             return;
         }
         it->arrived = true;
+        saveOwnWorkspaces();
         const QString own = it->ownDesktopId;
         const QString origin = it->originDesktopId;
         // Placed after the origin once the arrival has cut the new trailing
@@ -210,12 +335,98 @@ void WorkspaceController::noteOwnWorkspaceCensus(const QString& instanceId)
         if (m_ownWorkspaceHold) {
             m_ownWorkspaceHold(instanceId, false);
         }
+        saveOwnWorkspaces();
     }
+}
+
+void WorkspaceController::noteOwnWorkspaceVisitor(const QString& instanceId)
+{
+    if (!m_adopted || m_ownWorkspaces.isEmpty() || m_ownWorkspaces.contains(instanceId)
+        || m_ownWorkspaceVisitors.contains(instanceId)) {
+        return;
+    }
+    const auto meta = m_registry->metadata(instanceId);
+    // A dialog, a notification or a helper window that keeps out of the task
+    // bar belongs with the window it serves: a game's own dialogs stay with
+    // the game.
+    if (!meta || meta->isTransient.value_or(false) || meta->isNotification.value_or(false)
+        || meta->skipTaskbar.value_or(false)) {
+        return;
+    }
+    const QStringList desktops = m_windowCensusDesktopIds.value(instanceId);
+    if (desktops.size() != 1) {
+        return;
+    }
+    QString owner;
+    for (auto it = m_ownWorkspaces.constBegin(); it != m_ownWorkspaces.constEnd(); ++it) {
+        if (it->arrived && it->ownDesktopId == desktops.first()) {
+            owner = it.key();
+            break;
+        }
+    }
+    if (owner.isEmpty()) {
+        return;
+    }
+    // A window that opens in a state of its own (fullscreen itself) is no
+    // visitor: it takes an own workspace of its own once it can.
+    if (m_ownWorkspaceState) {
+        const OwnWorkspaceWindowState state = m_ownWorkspaceState(instanceId);
+        if (OWD::triggerFor(OWD::Options{m_ownFullscreen, m_ownMaximized, m_ownBorderless},
+                            OWD::State{state.fullscreen, state.maximized, state.borderless})
+            != OWD::Trigger::None) {
+            return;
+        }
+    }
+    const OwnWorkspace& record = m_ownWorkspaces[owner];
+    OwnWorkspaceVisitor visit{record.screenId, record.originDesktopId, record.ownDesktopId, owner};
+    runWhenQuiet([this, instanceId, visit]() {
+        const int originDesktop = m_vdm->desktopIndexOf(visit.originDesktopId);
+        if (originDesktop <= 0 || !m_registry->metadata(instanceId)
+            || !m_windowCensusDesktopIds.value(instanceId).contains(visit.ownDesktopId)) {
+            return;
+        }
+        qCInfo(lcWorkspaceCtl) << "window" << instanceId << "opened on the own workspace of" << visit.owner
+                               << "— moving it to" << visit.originDesktopId;
+        m_ownWorkspaceVisitors.insert(instanceId, visit);
+        issueWindowMove(instanceId, visit.screenId, originDesktop, visit.originDesktopId, QStringLiteral("up"),
+                        /*moveOutput=*/false, /*subjectOfVerb=*/false);
+        if (m_reconciler.currentDesktopIdOf(visit.screenId) == visit.ownDesktopId) {
+            switchScreenToDesktop(visit.screenId, visit.originDesktopId,
+                                  PhosphorProtocol::ScreenDesktopSwitchPurpose::Correction);
+        }
+        Q_EMIT windowActivationRequested(instanceId);
+    });
+}
+
+void WorkspaceController::endOwnWorkspaceVisit(const QString& instanceId)
+{
+    const auto it = m_ownWorkspaceVisitors.constFind(instanceId);
+    if (it == m_ownWorkspaceVisitors.constEnd()) {
+        return;
+    }
+    const OwnWorkspaceVisitor visit = *it;
+    m_ownWorkspaceVisitors.erase(it);
+    const auto owner = m_ownWorkspaces.constFind(visit.owner);
+    // Only while the screen still shows the origin the visit took it to, and
+    // the own workspace it left is still the owner's.
+    if (owner == m_ownWorkspaces.constEnd() || owner->ownDesktopId != visit.ownDesktopId
+        || m_reconciler.currentDesktopIdOf(visit.screenId) != visit.originDesktopId
+        || m_vdm->desktopIndexOf(visit.ownDesktopId) <= 0) {
+        return;
+    }
+    qCInfo(lcWorkspaceCtl) << "visitor" << instanceId << "closed — back to the own workspace of" << visit.owner;
+    switchScreenToDesktop(visit.screenId, visit.ownDesktopId, PhosphorProtocol::ScreenDesktopSwitchPurpose::Correction);
+    Q_EMIT windowActivationRequested(visit.owner);
 }
 
 void WorkspaceController::leaveOwnWorkspace(const QString& instanceId, bool closed)
 {
     const OwnWorkspace record = m_ownWorkspaces.take(instanceId);
+    // Its visitors have no own workspace to go back to any more.
+    for (auto it = m_ownWorkspaceVisitors.begin(); it != m_ownWorkspaceVisitors.end();) {
+        it = it->owner == instanceId ? m_ownWorkspaceVisitors.erase(it) : std::next(it);
+    }
+    saveOwnWorkspaces();
     const int originDesktop = m_vdm->desktopIndexOf(record.originDesktopId);
     // On its own workspace, or on its way there: a state that ends before the
     // move lands still owes the way back.

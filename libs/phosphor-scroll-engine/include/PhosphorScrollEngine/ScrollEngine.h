@@ -261,6 +261,8 @@ public:
     /// column of its own right of the column that was on its left.
     void holdForOwnWorkspace(const QString& windowId) override;
     void dropOwnWorkspaceHold(const QString& windowId) override;
+    QJsonObject ownWorkspaceHoldJson(const QString& windowId) const override;
+    void restoreOwnWorkspaceHold(const QString& windowId, const QJsonObject& hold) override;
     /// Drop the closed-mid-hold memory once the daemon's close capture has read it, or a live
     /// release left no capture to read it. The same moment ends the last-applied rect a close
     /// retained (lastManagedRect), when the window no longer holds a place in any strip here, since

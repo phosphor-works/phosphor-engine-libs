@@ -692,6 +692,19 @@ void EngineRuntime::initializeWorkspaces()
         const bool tileTiled = tile && tile->isWindowTiled(instanceId);
         state.fullscreen =
             meta->isFullscreen.value_or(false) && !(scrollTiled && scroll->isWindowedFullscreen(instanceId));
+        // Borderless: no decoration and the frame exactly one screen, the rule
+        // kde-fullscreen-spaces uses for borderless games. Not for a window
+        // that is fullscreen already, which the fullscreen arm covers.
+        if (!meta->isFullscreen.value_or(false) && !meta->hasDecoration.value_or(true) && meta->width && meta->height
+            && meta->positionX && meta->positionY && m_screenManager) {
+            const QRect frame(*meta->positionX, *meta->positionY, *meta->width, *meta->height);
+            for (const auto& screen : m_screenManager->screens()) {
+                if (screen.geometry == frame) {
+                    state.borderless = true;
+                    break;
+                }
+            }
+        }
         if (scrollTiled) {
             state.maximized = scroll->isMaximizedToEdges(instanceId);
         } else if (tileTiled) {
@@ -714,13 +727,37 @@ void EngineRuntime::initializeWorkspaces()
             }
         }
     });
+    controller->setOwnWorkspaceHoldCodec(
+        [this](const QString& instanceId) {
+            QJsonObject holds;
+            for (PhosphorEngine::PlacementEngineBase* engine :
+                 {m_scrollEngine.get(), m_autotileEngine.get(), m_snapEngine.get()}) {
+                if (engine) {
+                    const QJsonObject hold = engine->ownWorkspaceHoldJson(instanceId);
+                    if (!hold.isEmpty()) {
+                        holds[engine->engineId()] = hold;
+                    }
+                }
+            }
+            return holds;
+        },
+        [this](const QString& instanceId, const QJsonObject& holds) {
+            for (PhosphorEngine::PlacementEngineBase* engine :
+                 {m_scrollEngine.get(), m_autotileEngine.get(), m_snapEngine.get()}) {
+                if (engine && holds.contains(engine->engineId())) {
+                    engine->restoreOwnWorkspaceHold(instanceId, holds.value(engine->engineId()).toObject());
+                }
+            }
+        });
     const auto applyOwnWorkspaceOptions = [this, controller]() {
         controller->setOwnWorkspaceOptions(m_settings->workspacesFullscreenOwnWorkspace(),
-                                           m_settings->workspacesMaximizedOwnWorkspace());
+                                           m_settings->workspacesMaximizedOwnWorkspace(),
+                                           m_settings->workspacesBorderlessOwnWorkspace());
     };
     applyOwnWorkspaceOptions();
     connect(m_settings.get(), &Settings::workspacesFullscreenOwnWorkspaceChanged, wiring, applyOwnWorkspaceOptions);
     connect(m_settings.get(), &Settings::workspacesMaximizedOwnWorkspaceChanged, wiring, applyOwnWorkspaceOptions);
+    connect(m_settings.get(), &Settings::workspacesBorderlessOwnWorkspaceChanged, wiring, applyOwnWorkspaceOptions);
     // The engines take a maximize request after KWin's maximize edge reached
     // the daemon, so the controller reads the window again when an engine's
     // own maximize changes. Queued: the engines emit from inside a layout

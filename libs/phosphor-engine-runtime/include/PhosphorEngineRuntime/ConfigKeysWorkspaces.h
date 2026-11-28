@@ -80,6 +80,9 @@ public:
     // temporary workspace of its own after the one it was on.
     P_CONFIG_KEY(fullscreenOwnWorkspaceKey, "FullscreenOwnWorkspace")
     P_CONFIG_KEY(maximizedOwnWorkspaceKey, "MaximizedOwnWorkspace")
+    // A borderless window whose frame covers its whole screen (a borderless
+    // game) counts like a fullscreen one.
+    P_CONFIG_KEY(borderlessOwnWorkspaceKey, "BorderlessOwnWorkspace")
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Config Keys — Workspaces.Named

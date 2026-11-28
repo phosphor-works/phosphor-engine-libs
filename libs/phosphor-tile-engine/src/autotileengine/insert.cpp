@@ -485,6 +485,19 @@ bool AutotileEngine::insertWindow(const QString& windowId, const QString& screen
     // their states keep the tiles. For a fresh open this is the same as the
     // replace it supersedes.
     m_states.addMembership(windowId, currentKey);
+    // A daemon restart: the first time this engine sees the window in this
+    // run, its exact record (the id outlives the daemon) gives back the
+    // maximize to edges it had. Only the first time, since later in the run
+    // the record can be older than the live state.
+    if (!m_windowsSeenThisRun.contains(windowId)) {
+        m_windowsSeenThisRun.insert(windowId);
+        if (m_windowTracker && !state->isFloating(windowId)) {
+            if (const auto rec = m_windowTracker->placementStore().peekExact(windowId);
+                rec && rec->slotFor(engineId()).maximizedToEdges) {
+                m_maximizedToEdgesWindows.insert(windowId);
+            }
+        }
+    }
     return true;
 }
 

@@ -687,4 +687,48 @@ void ScrollEngine::restoreStripState(const QJsonObject& state)
     }
 }
 
+QJsonObject ScrollEngine::ownWorkspaceHoldJson(const QString& rawWindowId) const
+{
+    const auto it = m_ownWorkspaceHolds.constFind(canonicalizeForLookup(rawWindowId));
+    if (it == m_ownWorkspaceHolds.constEnd()) {
+        return {};
+    }
+    QJsonObject obj;
+    // The canonical id: the import runs at start, before the registry knows
+    // the window and could canonicalize it.
+    obj[QLatin1String("id")] = it.key();
+    obj[QLatin1String("screen")] = it->origin.screenId;
+    obj[QLatin1String("desktop")] = it->origin.desktop;
+    obj[QLatin1String("activity")] = it->origin.activity;
+    obj[QLatin1String("leftAnchor")] = it->leftAnchor;
+    obj[QLatin1String("stackAnchor")] = it->stackAnchor;
+    obj[QLatin1String("tileIndex")] = it->tileIndex;
+    obj[kWidth()] = widthToJson(it->width);
+    obj[QLatin1String("display")] = static_cast<int>(it->display);
+    obj[QLatin1String("maximizedToEdges")] = it->maximizedToEdges;
+    return obj;
+}
+
+void ScrollEngine::restoreOwnWorkspaceHold(const QString& rawWindowId, const QJsonObject& hold)
+{
+    const QString screen = hold.value(QLatin1String("screen")).toString();
+    const int desktop = hold.value(QLatin1String("desktop")).toInt(0);
+    if (rawWindowId.isEmpty() || screen.isEmpty() || desktop <= 0) {
+        return;
+    }
+    OwnWorkspaceHold restored;
+    restored.origin =
+        PhosphorEngine::PlacementStateKey{screen, desktop, hold.value(QLatin1String("activity")).toString()};
+    restored.leftAnchor = hold.value(QLatin1String("leftAnchor")).toString();
+    restored.stackAnchor = hold.value(QLatin1String("stackAnchor")).toString();
+    restored.tileIndex = hold.value(QLatin1String("tileIndex")).toInt(-1);
+    restored.width = widthFromJson(hold.value(kWidth()).toObject());
+    const int display = hold.value(QLatin1String("display")).toInt(0);
+    restored.display =
+        display == static_cast<int>(ColumnDisplay::Tabbed) ? ColumnDisplay::Tabbed : ColumnDisplay::Normal;
+    restored.maximizedToEdges = hold.value(QLatin1String("maximizedToEdges")).toBool(false);
+    const QString id = hold.value(QLatin1String("id")).toString();
+    m_ownWorkspaceHolds.insert(id.isEmpty() ? canonicalizeForLookup(rawWindowId) : id, restored);
+}
+
 } // namespace PhosphorScrollEngine

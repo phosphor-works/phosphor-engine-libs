@@ -42,7 +42,21 @@ private Q_SLOTS:
         QFETCH(bool, fullscreen);
         QFETCH(bool, maximized);
         QFETCH(int, expected);
-        QCOMPARE(static_cast<int>(triggerFor(fullscreenOption, maximizedOption, fullscreen, maximized)), expected);
+        QCOMPARE(static_cast<int>(triggerFor(Options{fullscreenOption, maximizedOption, false},
+                                             State{fullscreen, maximized, false})),
+                 expected);
+    }
+
+    // Borderless comes last: it covers a window only when neither other
+    // option does, and never without its own option.
+    void triggerFor_borderless()
+    {
+        const State borderlessOnly{false, false, true};
+        QCOMPARE(triggerFor(Options{false, false, true}, borderlessOnly), Trigger::Borderless);
+        QCOMPARE(triggerFor(Options{true, true, false}, borderlessOnly), Trigger::None);
+        QCOMPARE(triggerFor(Options::all(), State{true, false, true}), Trigger::Fullscreen);
+        QCOMPARE(triggerFor(Options::all(), State{false, true, true}), Trigger::Maximized);
+        QCOMPARE(triggerFor(Options{false, true, true}, State{true, false, true}), Trigger::Borderless);
     }
 
     // The good case enters, and each fact on its own refuses.

@@ -225,6 +225,10 @@ void appendWorkspacesSchema(PhosphorConfig::Schema& schema)
          QStringLiteral("Moves a window that you maximize to a new workspace directly after the one it was on. "
                         "When you restore the window or close it, the monitor goes back to the workspace the "
                         "window came from.")},
+        {CD::borderlessOwnWorkspaceKey(), CD::workspacesBorderlessOwnWorkspace(), QMetaType::Bool,
+         QStringLiteral("Moves a window with no title bar that covers its whole screen, such as a borderless game, "
+                        "to a new workspace directly after the one it was on. When the window stops covering the "
+                        "screen or closes, the monitor goes back to the workspace the window came from.")},
     };
     schema.groups[CD::workspacesNamedGroup()] = {
         {CD::entriesKey(), CD::workspacesNamedEntries(), QMetaType::QVariantList,

@@ -261,6 +261,39 @@ bool ScrollEngine::insertOpenedWindow(ScrollState* state, const QString& windowI
     // And a column a move recorded for it on another desktop of this screen
     // is one it did not reach: it is arriving here instead (C41).
     forgetMovedColumnsElsewhere(windowId, currentKeyForScreen(screenId));
+    // A window back from its own workspace to an origin whose strip is still
+    // being restored from its stash (a daemon restart while it was away: the
+    // stash was written without it). Its column joins the stash right of the
+    // stashed column of its left neighbour, so the stash places it and every
+    // window still to arrive among the others, whatever order they come in.
+    // Without a stashed neighbour to anchor on, the hold's own arm below
+    // places it against the live strip instead.
+    if (const auto hold = m_ownWorkspaceHolds.constFind(windowId);
+        hold != m_ownWorkspaceHolds.constEnd() && hold->origin == currentKeyForScreen(screenId)) {
+        if (const auto stashIt = m_stripStash.find(hold->origin); stashIt != m_stripStash.end()) {
+            QVector<StashedColumn>& columns = stashIt->columns;
+            int leftIndex = -1;
+            bool listed = false;
+            for (int i = 0; i < columns.size(); ++i) {
+                for (const StashedTile& tile : std::as_const(columns.at(i).tiles)) {
+                    listed = listed || tile.windowId == windowId;
+                    if (!hold->leftAnchor.isEmpty() && tile.windowId == hold->leftAnchor) {
+                        leftIndex = i;
+                    }
+                }
+            }
+            if (!listed && (hold->leftAnchor.isEmpty() || leftIndex >= 0)) {
+                StashedColumn column;
+                StashedTile tile;
+                tile.windowId = windowId;
+                column.tiles.append(tile);
+                column.width = hold->width;
+                column.display = hold->display;
+                columns.insert(leftIndex + 1, column);
+                m_ownWorkspaceHolds.remove(windowId);
+            }
+        }
+    }
     if (restoreFromStripStash(state, currentKeyForScreen(screenId), windowId, params, minWidth, minHeight,
                               outStashFocused)) {
         inserted = true;

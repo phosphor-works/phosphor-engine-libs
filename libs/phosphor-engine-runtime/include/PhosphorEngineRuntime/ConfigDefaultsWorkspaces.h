@@ -51,6 +51,12 @@ public:
     {
         return false;
     }
+    /// BorderlessOwnWorkspace: a window with no decoration whose frame is
+    /// exactly its screen's geometry. Off by default.
+    static constexpr bool workspacesBorderlessOwnWorkspace()
+    {
+        return false;
+    }
 
     /// Named-workspace declarations: none by default. Entry shape (all
     /// QVariantMap fields): id (persistent braced QUuid, empty until a

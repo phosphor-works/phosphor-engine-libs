@@ -8,6 +8,7 @@
 #include "phosphorengine_export.h"
 
 #include <QList>
+#include <QJsonObject>
 #include <QObject>
 #include <QPointer>
 #include <QRect>
@@ -75,6 +76,21 @@ public:
     virtual void dropOwnWorkspaceHold(const QString& windowId)
     {
         Q_UNUSED(windowId)
+    }
+    /// The hold of @p windowId as JSON, for the workspace controller's state
+    /// file, so a daemon restart while the window is away keeps its place.
+    /// Empty when this engine holds nothing for it.
+    virtual QJsonObject ownWorkspaceHoldJson(const QString& windowId) const
+    {
+        Q_UNUSED(windowId)
+        return {};
+    }
+    /// Take back a hold that ownWorkspaceHoldJson wrote in an earlier run.
+    /// Ignored when the object is empty or malformed.
+    virtual void restoreOwnWorkspaceHold(const QString& windowId, const QJsonObject& hold)
+    {
+        Q_UNUSED(windowId)
+        Q_UNUSED(hold)
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

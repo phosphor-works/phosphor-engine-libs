@@ -37,6 +37,10 @@ P_STORE_GET(bool, workspacesFullscreenOwnWorkspace, workspacesBehaviorGroup, ful
 P_STORE_SET_BOOL(setWorkspacesFullscreenOwnWorkspace, workspacesBehaviorGroup, fullscreenOwnWorkspaceKey,
                  workspacesFullscreenOwnWorkspaceChanged)
 
+P_STORE_GET(bool, workspacesBorderlessOwnWorkspace, workspacesBehaviorGroup, borderlessOwnWorkspaceKey, bool)
+P_STORE_SET_BOOL(setWorkspacesBorderlessOwnWorkspace, workspacesBehaviorGroup, borderlessOwnWorkspaceKey,
+                 workspacesBorderlessOwnWorkspaceChanged)
+
 P_STORE_GET(bool, workspacesMaximizedOwnWorkspace, workspacesBehaviorGroup, maximizedOwnWorkspaceKey, bool)
 P_STORE_SET_BOOL(setWorkspacesMaximizedOwnWorkspace, workspacesBehaviorGroup, maximizedOwnWorkspaceKey,
                  workspacesMaximizedOwnWorkspaceChanged)

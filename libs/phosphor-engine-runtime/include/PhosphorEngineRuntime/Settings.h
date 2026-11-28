@@ -397,6 +397,8 @@ public:
                    setWorkspacesFullscreenOwnWorkspace NOTIFY workspacesFullscreenOwnWorkspaceChanged)
     Q_PROPERTY(bool workspacesMaximizedOwnWorkspace READ workspacesMaximizedOwnWorkspace WRITE
                    setWorkspacesMaximizedOwnWorkspace NOTIFY workspacesMaximizedOwnWorkspaceChanged)
+    Q_PROPERTY(bool workspacesBorderlessOwnWorkspace READ workspacesBorderlessOwnWorkspace WRITE
+                   setWorkspacesBorderlessOwnWorkspace NOTIFY workspacesBorderlessOwnWorkspaceChanged)
     Q_PROPERTY(QVariantList workspacesNamedEntries READ workspacesNamedEntries WRITE setWorkspacesNamedEntries NOTIFY
                    workspacesNamedEntriesChanged)
     // The workspace chords and quick-slot targets. Q_PROPERTY presence is
@@ -1495,6 +1497,8 @@ public:
     void setWorkspacesFullscreenOwnWorkspace(bool enabled);
     bool workspacesMaximizedOwnWorkspace() const;
     void setWorkspacesMaximizedOwnWorkspace(bool enabled);
+    bool workspacesBorderlessOwnWorkspace() const;
+    void setWorkspacesBorderlessOwnWorkspace(bool enabled);
     QVariantList workspacesNamedEntries() const;
     void setWorkspacesNamedEntries(const QVariantList& entries);
     QString workspaceFocusUpShortcut() const;
@@ -2551,6 +2555,7 @@ Q_SIGNALS:
     void workspacesSnapBackOsdHintChanged();
     void workspacesFullscreenOwnWorkspaceChanged();
     void workspacesMaximizedOwnWorkspaceChanged();
+    void workspacesBorderlessOwnWorkspaceChanged();
     void workspacesNamedEntriesChanged();
     void workspaceFocusUpShortcutChanged();
     void workspaceFocusDownShortcutChanged();

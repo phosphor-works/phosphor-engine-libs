@@ -22,17 +22,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The
   entry carries the `maximizedToEdges` flag, as a scrolling column does. The state ends when the window closes,
   floats, leaves the engine or joins a monocle stack. `phosphor-engine-runtime`: `AutotileService::toggleMaximizeToEdges`
   is the verb behind it. ([workspace#28](https://github.com/phosphor-works/workspace/issues/28))
-- `phosphor-engine-runtime`: own workspaces. With the `Workspaces.Behavior` option `FullscreenOwnWorkspace` or
-  `MaximizedOwnWorkspace` on (both off by default), `WorkspaceController` moves a window that goes fullscreen, or that
-  the user maximizes, to a new workspace directly after the one it was on, and shows it. When the window leaves that
-  state it moves back and the monitor shows the origin again. When it closes, the monitor shows the origin and the
-  window last active there takes focus. ([PlasmaZones#1201](https://github.com/phosphor-works/PlasmaZones/issues/1201))
+- `phosphor-engine-runtime`: own workspaces. With the `Workspaces.Behavior` option `FullscreenOwnWorkspace`,
+  `MaximizedOwnWorkspace` or `BorderlessOwnWorkspace` on (all off by default), `WorkspaceController` moves a window that
+  goes fullscreen, that the user maximizes, or that has no decoration and covers its whole screen, to a new workspace
+  directly after the one it was on, and shows it. When the window leaves that state it moves back and the monitor shows
+  the origin again. When it closes, the monitor shows the origin and the window last active there takes focus. A new
+  ordinary window that opens on an own workspace goes to the origin, and its close shows the own workspace again with
+  its owner focused. The records and the engines' holds are kept in `own-workspaces.json` in the app's state
+  directory, so a daemon restart keeps them. ([PlasmaZones#1201](https://github.com/phosphor-works/PlasmaZones/issues/1201))
 - `phosphor-engine`: `PlacementEngineBase::holdForOwnWorkspace` and `dropOwnWorkspaceHold`, and the
   `windowMaximizedToEdgesChanged` signal. `phosphor-tile-engine` and `phosphor-scroll-engine` implement the hold: the
   window keeps its maximize across the trip and comes back to its place in the order or its column slot.
   `ScrollEngine::isWindowedFullscreen` and `ScrollEngine::isMaximizedToEdges` answer for one window.
   ([PlasmaZones#1201](https://github.com/phosphor-works/PlasmaZones/issues/1201))
 - `phosphor-workspaces`: `WorkspaceReconciler::reorderWorkspace` moves any workspace to a slot of its monitor's list.
+- `phosphor-engine`: `EngineSlot::maximizedToEdges`, saved in the placement store. `phosphor-tile-engine` records a
+  tile's maximize to edges there and gives it back on the window's first insert after a daemon restart.
 
 ### Changed
 
@@ -43,6 +48,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The
 
 ### Fixed
 
+- `phosphor-tile-engine`: a tiling state made for a context that is not in view (a desktop the screen does not show,
+  as after a daemon restart) starts with the screen's split ratio and master count: its override, or the default of the
+  algorithm the screen is pinned to. It took the global values, so such a desktop came back with another ratio.
 - `phosphor-engine-runtime`: the snap channel routes a window that opened before the daemon was ready. The daemon-ready sweep counts as a first placement for a window that no engine placed, which `WindowTracker::wasPlacedByAnyEngine` decides from engine slots, not from the geometry-only record. The tiling channel uses the same test. ([PlasmaZones#1315](https://github.com/phosphor-works/PlasmaZones/issues/1315))
 - `phosphor-scroll-engine`: a saved strip tile outranks another window's floating record when a window opens. `ScrollEngine::stripStashHasTileFor` tells the open path that the stash has a tile for the window. ([PlasmaZones#1301](https://github.com/phosphor-works/PlasmaZones/issues/1301))
 - `phosphor-scroll-engine`: the own-fullscreen hold (`setWindowFullscreenFloat`) keeps the tile in its column and announces no float, so no other column moves. An opening window does not join the held column, and committed-size and minimum-size reports wait for the end of the hold. `isFullscreenFloated` is renamed `isFullscreenHeld`. ([PlasmaZones#1266](https://github.com/phosphor-works/PlasmaZones/issues/1266))

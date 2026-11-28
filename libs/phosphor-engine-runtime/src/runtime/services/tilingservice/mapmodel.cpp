@@ -132,6 +132,10 @@ QString TilingService::currentTilesJson(const QString& screenId) const
         obj[screenIdKey()] = entry.screenId;
         obj[monocleKey()] = entry.monocle;
         obj[floatingKey()] = entry.floating;
+        // The engine's declared maximize to edges (a scrolling column, or the
+        // tile engine's override), the state the compositor mirrors onto the
+        // maximize bit.
+        obj[QLatin1String("maximizedToEdges")] = entry.maximizedToEdges;
         // Reserved and always empty on the signal (relay.cpp never parses
         // it); written for shape parity with the reader's key set.
         obj[zoneIdKey()] = entry.zoneId;

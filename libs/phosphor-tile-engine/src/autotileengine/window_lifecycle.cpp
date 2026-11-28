@@ -460,6 +460,7 @@ void AutotileEngine::windowClosed(const QString& rawWindowId)
     m_autotileFloatedWindows.remove(windowId);
     m_maximizedToEdgesWindows.remove(windowId);
     m_lastAppliedMaximizedToEdges.remove(windowId);
+    m_maximizedBeforeFloat.remove(windowId);
     m_ownWorkspaceHolds.remove(windowId);
     // Min-size cleanup must not depend on tracking: a window released from
     // tracking (autotile toggle-off, orphaned VS) and later closed would hit
@@ -671,6 +672,7 @@ bool AutotileEngine::releaseScreenStateForTeardown(const PhosphorEngine::TilingS
         m_windowMinSizes.remove(windowId);
         m_maximizedToEdgesWindows.remove(windowId);
         m_lastAppliedMaximizedToEdges.remove(windowId);
+        m_maximizedBeforeFloat.remove(windowId);
     }
     for (const QString& windowId : floated) {
         m_windowMinSizes.remove(windowId);

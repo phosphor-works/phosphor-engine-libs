@@ -530,6 +530,7 @@ void AutotileEngine::handoffRelease(const QString& windowId)
         m_maximizedToEdgesWindows.remove(canonical);
     }
     m_lastAppliedMaximizedToEdges.remove(canonical);
+    m_maximizedBeforeFloat.remove(canonical);
     // The durable slot goes with the tracking (the scroll twin carries the
     // same clear): a released window is one this engine knowingly gave up,
     // and a stale autotile TILED slot left in the unified record is not

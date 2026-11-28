@@ -268,6 +268,44 @@ void AutotileEngine::demoteFromMaster(const QString& rawWindowId)
     retileAfterOperation(screenId, demoted);
 }
 
+bool AutotileEngine::toggleMaximizeToEdges(const QString& screenId, const QString& rawWindowId)
+{
+    QString windowId;
+    if (rawWindowId.isEmpty()) {
+        PhosphorTiles::TilingState* current = screenId.isEmpty() ? nullptr : tilingStateForScreen(screenId);
+        windowId = current ? current->focusedWindow() : QString();
+    } else {
+        windowId = canonicalizeWindowId(rawWindowId);
+    }
+    if (windowId.isEmpty()) {
+        return false;
+    }
+    QString ownerScreen;
+    PhosphorTiles::TilingState* state = stateForWindow(windowId, &ownerScreen);
+    if (!state || !state->containsWindow(windowId) || state->isFloating(windowId)) {
+        return false;
+    }
+    // A monocle stack already fills the area with every window and owns
+    // their maximize bits (the batch's monocle flag). A second claim on one
+    // of them would put the bit under two owners. applyTiling prunes the
+    // state when a stack becomes monocle, and this keeps it from being set
+    // while it is one. Judged on the zones the last layout produced, which is
+    // the layout on screen.
+    if (isMonocleLayout(state->calculatedZones(), state->tiledWindowCount())) {
+        return false;
+    }
+    if (!m_maximizedToEdgesWindows.remove(windowId)) {
+        m_maximizedToEdgesWindows.insert(windowId);
+    }
+    retileAfterOperation(ownerScreen, true);
+    return true;
+}
+
+bool AutotileEngine::isMaximizedToEdges(const QString& rawWindowId) const
+{
+    return m_maximizedToEdgesWindows.contains(canonicalizeForLookup(rawWindowId));
+}
+
 void AutotileEngine::swapFocusedWithMaster()
 {
     m_navigation->swapFocusedWithMaster();

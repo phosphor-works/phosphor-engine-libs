@@ -131,6 +131,14 @@ int AutotileEngine::pruneStaleWindows(const QSet<QString>& aliveWindowIds)
             ++it;
         }
     }
+    // A maximize of a window that is gone. Per window, like the two above.
+    for (auto it = m_maximizedToEdgesWindows.begin(); it != m_maximizedToEdgesWindows.end();) {
+        if (!aliveWindowIds.contains(*it)) {
+            it = m_maximizedToEdgesWindows.erase(it);
+        } else {
+            ++it;
+        }
+    }
     // Same independent keying for the last-applied tile rects.
     for (auto it = m_lastAppliedTileRect.begin(); it != m_lastAppliedTileRect.end();) {
         if (!aliveWindowIds.contains(it.key())) {

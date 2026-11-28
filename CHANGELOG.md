@@ -16,6 +16,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The
   libraries that the app's programs link, in the app's own directory. With phosphor-tiles, the type definitions for
   tiling scripts (`pluau.d.luau`) go in `share/phosphor-works/<app>`. Every install rule goes through the functions of
   phosphor-libs' `cmake/PhosphorSuite.cmake`.
+- `phosphor-tile-engine`: `AutotileEngine::toggleMaximizeToEdges` maximizes one tiled window to the screen's available
+  area with no gaps. The window keeps its tile and its place in the order, and the other tiles keep their rects,
+  because the engine applies the maximize after the algorithm. Every algorithm gets it with no change. The batch
+  entry carries the `maximizedToEdges` flag, as a scrolling column does. The state ends when the window closes,
+  floats, leaves the engine or joins a monocle stack. `phosphor-engine-runtime`: `AutotileService::toggleMaximizeToEdges`
+  is the verb behind it. ([workspace#28](https://github.com/phosphor-works/workspace/issues/28))
 
 ### Changed
 

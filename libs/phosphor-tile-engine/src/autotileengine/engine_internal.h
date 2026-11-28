@@ -4,6 +4,10 @@
 #pragma once
 
 #include <QObject>
+#include <QRect>
+#include <QVector>
+
+#include <algorithm>
 #include <PhosphorEngine/NavigationContext.h>
 #include <PhosphorEngine/PerScreenKeys.h>
 #include "tileenginelogging.h"
@@ -24,6 +28,19 @@ T* checkedCast(QObject* obj, const char* context)
         qCWarning(PhosphorTileEngine::lcTileEngine) << context << ": QObject is not the expected type — skipping";
     }
     return concrete;
+}
+
+/// Whether the first @p tileCount zones are one rect repeated, which is how a
+/// monocle stack looks (the monocle algorithm, or a degenerate fillArea
+/// fallback on a tiny screen). A single window is ordinary tiling, so it
+/// takes at least two. The count is clamped to the zone vector, because a
+/// stale vector can be shorter than the tiled count.
+inline bool isMonocleLayout(const QVector<QRect>& zones, int tileCount)
+{
+    const int count = std::min(tileCount, static_cast<int>(zones.size()));
+    return count >= 2 && std::all_of(zones.begin() + 1, zones.begin() + count, [&](const QRect& z) {
+               return z == zones[0];
+           });
 }
 
 } // namespace PhosphorTileEngine

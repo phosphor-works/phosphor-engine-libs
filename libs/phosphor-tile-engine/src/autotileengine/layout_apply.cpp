@@ -459,10 +459,29 @@ void AutotileEngine::applyTiling(const QString& screenId)
     // the zone vector (a stale layout outliving a lowered cap), and only the
     // first tileCount zones are actually applied below — judging monocle on
     // zones nothing tiles would answer for a layout that is not on screen.
-    const bool useMonocleMode =
-        tileCount >= 2 && std::all_of(zones.begin() + 1, zones.begin() + tileCount, [&](const QRect& z) {
-            return z == zones[0];
-        });
+    const bool useMonocleMode = isMonocleLayout(zones, tileCount);
+
+    // Maximize-to-edges (toggleMaximizeToEdges). Pruned here, the one pass
+    // that sees every float and the layout's final shape: a floated window
+    // (by the user, a rule or the overflow pass above) is no tile, so its
+    // maximize ends, and a monocle stack already maximizes each of its
+    // windows through the monocle flag, which must stay the bit's only owner.
+    if (!m_maximizedToEdgesWindows.isEmpty()) {
+        for (const QString& wid : state->floatingWindows()) {
+            m_maximizedToEdgesWindows.remove(wid);
+        }
+        if (useMonocleMode) {
+            for (int i = 0; i < tileCount; ++i) {
+                m_maximizedToEdgesWindows.remove(windows[i]);
+            }
+        }
+    }
+    // The available area with no gaps, the rect scrolling's maximize to edges
+    // gives a column. Read once, and only when a window here needs it.
+    QRect maximizeArea;
+    if (!m_maximizedToEdgesWindows.isEmpty()) {
+        maximizeArea = screenGeometry(screenId);
+    }
 
     // Overlap layouts declare a deterministic z-order for the tiled stack
     // (every bundled overlap layout stacks the last tiled index on top;
@@ -491,7 +510,8 @@ void AutotileEngine::applyTiling(const QString& screenId)
         // exactly and the border never pushes past the slot into the neighbour
         // (mirrors the snap side, DaemonGeometryResolver::snapBorderInset == 0).
         // Tile spacing comes from the zone gap/padding settings, not the border.
-        const QRect& geo = zones[i];
+        const bool maximizedToEdges = maximizeArea.isValid() && m_maximizedToEdgesWindows.contains(windows[i]);
+        const QRect& geo = maximizedToEdges ? maximizeArea : zones[i];
         // Remember the emitted rect for lastManagedRect(): the float-toggle
         // capture path compares the live frame against it AFTER the tiled bit
         // has already cleared (see the header doc on m_lastAppliedTileRect).
@@ -507,6 +527,12 @@ void AutotileEngine::applyTiling(const QString& screenId)
         // which makes Plasma panels recognize the window and unfloat.
         if (useMonocleMode) {
             obj[QLatin1String("monocle")] = true;
+        }
+        // Declared state, never measured from the rect: the compositor
+        // mirrors it onto the window's maximize bit. Never beside monocle,
+        // because the prune above keeps the two sets apart.
+        if (maximizedToEdges) {
+            obj[QLatin1String("maximizedToEdges")] = true;
         }
         if (!stacking.isEmpty()) {
             obj[QLatin1String("stacking")] = stacking;

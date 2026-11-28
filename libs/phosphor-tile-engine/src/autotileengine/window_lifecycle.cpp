@@ -458,6 +458,7 @@ void AutotileEngine::windowClosed(const QString& rawWindowId)
     dropClosedWindowFromDragPreview(windowId);
 
     m_autotileFloatedWindows.remove(windowId);
+    m_maximizedToEdgesWindows.remove(windowId);
     // Min-size cleanup must not depend on tracking: a window released from
     // tracking (autotile toggle-off, orphaned VS) and later closed would hit
     // onWindowRemoved's empty-stored-key early return and keep its entry for
@@ -662,8 +663,11 @@ bool AutotileEngine::releaseScreenStateForTeardown(const PhosphorEngine::TilingS
     // handler is the marker's consumer and clears it per window.
     // Over this state's own two lists, not the caller's accumulator — that
     // one spans every state torn down in the same sweep.
+    // A maximize leaves with the tracking too: a window that returns is
+    // tiled again from its plain tile, as after any other release.
     for (const QString& windowId : tiled) {
         m_windowMinSizes.remove(windowId);
+        m_maximizedToEdgesWindows.remove(windowId);
     }
     for (const QString& windowId : floated) {
         m_windowMinSizes.remove(windowId);

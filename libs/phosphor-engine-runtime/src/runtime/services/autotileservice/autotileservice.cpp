@@ -109,6 +109,15 @@ void AutotileService::demoteFromMaster(const QString& windowId)
     m_engine->demoteFromMaster(windowId);
 }
 
+bool AutotileService::toggleMaximizeToEdges(const QString& screenId, const QString& windowId)
+{
+    if (!ensureEngine("toggleMaximizeToEdges") || screenId.isEmpty() || !m_engine->isActiveOnScreen(screenId)) {
+        return false;
+    }
+    qCDebug(lcDbusAutotile) << "toggleMaximizeToEdges: screenId=" << screenId << "windowId=" << windowId;
+    return m_engine->toggleMaximizeToEdges(screenId, windowId);
+}
+
 void AutotileService::focusMaster()
 {
     if (!ensureEngine("focusMaster")) {

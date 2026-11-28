@@ -521,6 +521,10 @@ void AutotileEngine::handoffRelease(const QString& windowId)
     // owns the window on every desktop now.
     dropFromOtherContexts(canonical, key);
     m_states.removeWindow(canonical);
+    // The maximize is this engine's state. The receiving engine has its own
+    // (scrolling keeps one on the column), so the window arrives unmaximized
+    // there, as every other per-mode state does.
+    m_maximizedToEdgesWindows.remove(canonical);
     // The durable slot goes with the tracking (the scroll twin carries the
     // same clear): a released window is one this engine knowingly gave up,
     // and a stale autotile TILED slot left in the unified record is not

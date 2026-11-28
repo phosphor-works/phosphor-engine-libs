@@ -1187,27 +1187,35 @@ bool WorkspaceReconciler::reorderCurrentWorkspace(const QString& screenId, int d
     if (currentId.isEmpty() || m_map.ownerOf(currentId) != screenId) {
         return false;
     }
+    return reorderWorkspace(currentId, m_map.sliceIndexOf(currentId) + delta);
+}
+
+bool WorkspaceReconciler::reorderWorkspace(const QString& desktopId, int sliceIndex)
+{
+    const QString screenId = m_map.ownerOf(desktopId);
+    if (screenId.isEmpty()) {
+        return false;
+    }
     // The trailing empty is the invariant, not a workspace the user arranges:
     // moving it up leaves it mid-slice, where it is reaped and recreated, and
     // moving anything past it does the same to it.
     const QString trailing = trailingEmptyOf(screenId);
-    if (currentId == trailing) {
+    if (desktopId == trailing) {
         return false;
     }
     const int size = m_map.sliceSize(screenId);
     const int lastSlot = trailing.isEmpty() ? size - 1 : size - 2;
-    const int target = m_map.sliceIndexOf(currentId) + delta;
-    if (target < 0 || target > lastSlot) {
+    if (sliceIndex < 0 || sliceIndex > lastSlot || sliceIndex == m_map.sliceIndexOf(desktopId)) {
         return false;
     }
-    if (!m_map.reorderWithinSlice(currentId, target)) {
+    if (!m_map.reorderWithinSlice(desktopId, sliceIndex)) {
         return false;
     }
     maintainScreen(screenId);
     bumpGeneration();
-    const WorkspaceEntry entry = m_map.entryFor(currentId);
+    const WorkspaceEntry entry = m_map.entryFor(desktopId);
     if (!entry.name.isEmpty()) {
-        Q_EMIT namedWorkspaceMoved(entry.namedId, entry.name, screenId, m_map.sliceIndexOf(currentId));
+        Q_EMIT namedWorkspaceMoved(entry.namedId, entry.name, screenId, m_map.sliceIndexOf(desktopId));
     }
     return true;
 }

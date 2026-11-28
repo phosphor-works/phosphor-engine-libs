@@ -105,6 +105,24 @@ public Q_SLOTS:
     void demoteFromMaster(const QString& windowId);
 
     /**
+     * @brief Toggle a tiled window's maximize-to-edges state
+     *
+     * The tiling twin of ScrollingService::toggleMaximizeToEdges, with the
+     * same shape and the same meaning of the answer. The KWin effect calls it
+     * when a window on a tiling screen is asked to maximize. The window keeps
+     * its tile and gets the screen's available area with no gaps (see
+     * AutotileEngine::toggleMaximizeToEdges).
+     *
+     * @param screenId Screen the request is about. Refused when empty or when
+     *        the engine does not run on it.
+     * @param windowId Window to toggle. Empty names the screen's focused window.
+     * @return true when the state changed. False covers a refusal here and a
+     *         request the engine acted on with nothing. The effect writes the
+     *         maximize bit back on false, because no batch follows.
+     */
+    bool toggleMaximizeToEdges(const QString& screenId, const QString& windowId);
+
+    /**
      * @brief Focus the master window on the current screen
      */
     void focusMaster();

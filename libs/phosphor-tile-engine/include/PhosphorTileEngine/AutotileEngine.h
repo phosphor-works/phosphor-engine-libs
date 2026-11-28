@@ -759,6 +759,36 @@ public:
     Q_INVOKABLE void demoteFromMaster(const QString& windowId);
 
     /**
+     * @brief Toggle a tiled window's maximize-to-edges state
+     *
+     * The tiling counterpart of ScrollEngine::toggleMaximizeToEdges. A
+     * maximized window keeps its tile and its place in the window order, so
+     * the algorithm lays out the stack as before. Only the window's own entry
+     * in the batch changes: it gets the screen's available area, with no
+     * gaps, and the maximizedToEdges flag that the compositor mirrors onto
+     * the window's maximize bit. Every algorithm gets this behavior, because
+     * the engine applies it after the algorithm has run.
+     *
+     * An empty @p windowId names the focused window of @p screenId's current
+     * context. A named window is resolved to its own tracked state, like
+     * every other window verb here.
+     *
+     * Refused (false, nothing changed) for an untracked or floating window,
+     * and for a window whose stack the algorithm already lays out as a
+     * monocle stack: that stack already maximizes every window in it.
+     *
+     * The state ends when the window closes, floats, leaves this engine, or
+     * joins a monocle stack. It stays when the window moves to another
+     * desktop or screen that this engine tiles.
+     *
+     * @return true when the state changed and a retile was issued
+     */
+    bool toggleMaximizeToEdges(const QString& screenId, const QString& windowId);
+
+    /// Whether the window is maximized to the edges (see toggleMaximizeToEdges).
+    bool isMaximizedToEdges(const QString& windowId) const;
+
+    /**
      * @brief Swap the currently focused window with the master window
      *
      * Convenience method that promotes the focused window to master position.
@@ -1787,6 +1817,13 @@ private:
     PhosphorTiles::TilingState* stateForWindow(const QString& windowId, QString* outScreenId = nullptr);
 
     QSet<QString> m_autotileFloatedWindows;
+
+    /// Canonical ids of the windows maximized to the edges
+    /// (toggleMaximizeToEdges). Kept per window, not per context, so the
+    /// state follows a window that moves to another desktop or screen. A
+    /// floated window, and every window of a monocle stack, is pruned from it
+    /// in applyTiling.
+    QSet<QString> m_maximizedToEdgesWindows;
 
     PhosphorZones::LayoutRegistry* m_layoutManager = nullptr;
     PhosphorEngine::IWindowTrackingService* m_windowTracker = nullptr;
